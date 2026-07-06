@@ -49,22 +49,22 @@ export type Database = {
           current_amount: number
           id: string
           initial_amount: number
-          singleton: boolean
           updated_at: string
+          user_id: string
         }
         Insert: {
           current_amount?: number
           id?: string
           initial_amount?: number
-          singleton?: boolean
           updated_at?: string
+          user_id: string
         }
         Update: {
           current_amount?: number
           id?: string
           initial_amount?: number
-          singleton?: boolean
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -77,6 +77,7 @@ export type Database = {
           description: string | null
           id: string
           type: string
+          user_id: string
         }
         Insert: {
           amount: number
@@ -86,6 +87,7 @@ export type Database = {
           description?: string | null
           id?: string
           type: string
+          user_id: string
         }
         Update: {
           amount?: number
@@ -95,6 +97,7 @@ export type Database = {
           description?: string | null
           id?: string
           type?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -140,6 +143,7 @@ export type Database = {
           telegram_text: string | null
           updated_at: string
           updated_by: string | null
+          user_id: string
         }
         Insert: {
           alert_type?: string | null
@@ -174,6 +178,7 @@ export type Database = {
           telegram_text?: string | null
           updated_at?: string
           updated_by?: string | null
+          user_id: string
         }
         Update: {
           alert_type?: string | null
@@ -208,6 +213,7 @@ export type Database = {
           telegram_text?: string | null
           updated_at?: string
           updated_by?: string | null
+          user_id?: string
         }
         Relationships: [
           {
