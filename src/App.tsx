@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewBet from "./pages/NewBet";
+import ImportBet from "./pages/ImportBet";
 import PendingBets from "./pages/PendingBets";
 import Results from "./pages/Results";
 import Bankroll from "./pages/Bankroll";
