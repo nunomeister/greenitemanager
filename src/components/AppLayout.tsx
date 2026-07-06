@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, Clock, ListChecks, Wallet, MessageSquare, Settings, LogOut, Skull, Menu, X } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Clock, ListChecks, Wallet, MessageSquare, Settings, LogOut, Skull, Menu, X, Sparkles } from 'lucide-react';
 import { useAuth, canAdmin, canEdit } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
