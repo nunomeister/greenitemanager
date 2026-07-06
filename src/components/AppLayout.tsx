@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/bets/new', icon: PlusCircle, label: 'Nova Aposta', requireEdit: true },
+  { to: '/bets/import', icon: Sparkles, label: 'Import IA', requireEdit: true },
   { to: '/bets/pending', icon: Clock, label: 'Pendentes' },
   { to: '/bets/results', icon: ListChecks, label: 'Resultados' },
   { to: '/bankroll', icon: Wallet, label: 'Banca' },
