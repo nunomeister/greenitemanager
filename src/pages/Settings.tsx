@@ -41,7 +41,13 @@ export default function Settings() {
   };
 
   const saveBankroll = async () => {
-    const { error } = await supabase.from('bankroll').update({ initial_amount: bankroll.initial_amount, current_amount: bankroll.current_amount }).eq('singleton', true);
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    const { error } = await supabase.from('bankroll').upsert({
+      user_id: u.user.id,
+      initial_amount: bankroll.initial_amount,
+      current_amount: bankroll.current_amount,
+    }, { onConflict: 'user_id' });
     if (error) toast.error(error.message); else toast.success('Banca atualizada');
   };
 
