@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewBet from "./pages/NewBet";
+import ImportBet from "./pages/ImportBet";
 import PendingBets from "./pages/PendingBets";
 import Results from "./pages/Results";
 import Bankroll from "./pages/Bankroll";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/" element={<Protected><Dashboard /></Protected>} />
             <Route path="/bets/new" element={<Protected requireRole={['admin','editor']}><NewBet /></Protected>} />
+            <Route path="/bets/import" element={<Protected requireRole={['admin','editor']}><ImportBet /></Protected>} />
             <Route path="/bets/pending" element={<Protected><PendingBets /></Protected>} />
             <Route path="/bets/results" element={<Protected><Results /></Protected>} />
             <Route path="/bankroll" element={<Protected><Bankroll /></Protected>} />

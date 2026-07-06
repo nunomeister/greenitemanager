@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, Clock, ListChecks, Wallet, MessageSquare, Settings, LogOut, Skull, Menu, X } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Clock, ListChecks, Wallet, MessageSquare, Settings, LogOut, Skull, Menu, X, Sparkles } from 'lucide-react';
 import { useAuth, canAdmin, canEdit } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/bets/new', icon: PlusCircle, label: 'Nova Aposta', requireEdit: true },
+  { to: '/bets/import', icon: Sparkles, label: 'Import IA', requireEdit: true },
   { to: '/bets/pending', icon: Clock, label: 'Pendentes' },
   { to: '/bets/results', icon: ListChecks, label: 'Resultados' },
   { to: '/bankroll', icon: Wallet, label: 'Banca' },

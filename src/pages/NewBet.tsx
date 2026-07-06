@@ -117,6 +117,7 @@ export default function NewBet() {
       alert_type: form.alert_type || null,
       score_at_entry: form.score_at_entry || null,
       created_by: userData.user?.id,
+      user_id: userData.user?.id,
     };
     const { error } = await supabase.from('bets').insert(payload as any);
     setLoading(false);

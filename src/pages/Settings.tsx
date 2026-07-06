@@ -18,7 +18,7 @@ export default function Settings() {
   const load = async () => {
     const [s, br, bk, pr, ur] = await Promise.all([
       supabase.from('settings').select('*'),
-      supabase.from('bankroll').select('*').single(),
+      supabase.from('bankroll').select('*').maybeSingle(),
       supabase.from('bookmakers').select('*').order('name'),
       supabase.from('profiles').select('*'),
       supabase.from('user_roles').select('*'),
@@ -26,7 +26,7 @@ export default function Settings() {
     const map: any = {};
     (s.data ?? []).forEach((r: any) => { map[r.key] = r.value; });
     setSettings(map);
-    setBankroll(br.data);
+    setBankroll(br.data ?? { initial_amount: 0, current_amount: 0 });
     setBookmakers(bk.data ?? []);
     const byUser: Record<string, string[]> = {};
     (ur.data ?? []).forEach((r: any) => { (byUser[r.user_id] ??= []).push(r.role); });
@@ -41,7 +41,13 @@ export default function Settings() {
   };
 
   const saveBankroll = async () => {
-    const { error } = await supabase.from('bankroll').update({ initial_amount: bankroll.initial_amount, current_amount: bankroll.current_amount }).eq('singleton', true);
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    const { error } = await supabase.from('bankroll').upsert({
+      user_id: u.user.id,
+      initial_amount: bankroll.initial_amount,
+      current_amount: bankroll.current_amount,
+    }, { onConflict: 'user_id' });
     if (error) toast.error(error.message); else toast.success('Banca atualizada');
   };
 
