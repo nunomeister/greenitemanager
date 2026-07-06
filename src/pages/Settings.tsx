@@ -26,7 +26,7 @@ export default function Settings() {
     const map: any = {};
     (s.data ?? []).forEach((r: any) => { map[r.key] = r.value; });
     setSettings(map);
-    setBankroll(br.data);
+    setBankroll(br.data ?? { initial_amount: 0, current_amount: 0 });
     setBookmakers(bk.data ?? []);
     const byUser: Record<string, string[]> = {};
     (ur.data ?? []).forEach((r: any) => { (byUser[r.user_id] ??= []).push(r.role); });
