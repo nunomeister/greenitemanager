@@ -14,16 +14,375 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_log: {
+        Row: {
+          action: string
+          changes: Json | null
+          created_at: string
+          entity: string
+          entity_id: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          created_at?: string
+          entity: string
+          entity_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          created_at?: string
+          entity?: string
+          entity_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      bankroll: {
+        Row: {
+          current_amount: number
+          id: string
+          initial_amount: number
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          current_amount?: number
+          id?: string
+          initial_amount?: number
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          current_amount?: number
+          id?: string
+          initial_amount?: number
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bankroll_movements: {
+        Row: {
+          amount: number
+          balance_after: number | null
+          bet_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          balance_after?: number | null
+          bet_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number | null
+          bet_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bankroll_movements_bet_id_fkey"
+            columns: ["bet_id"]
+            isOneToOne: false
+            referencedRelation: "bets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bets: {
+        Row: {
+          alert_type: string | null
+          bet_code: string | null
+          bet_date: string
+          bet_time: string
+          betlabel_link: string | null
+          bookmaker_id: string | null
+          closed_at: string | null
+          competition: string | null
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          market: string
+          match: string
+          match_minute: number | null
+          notes: string | null
+          odd: number
+          player: string | null
+          profit_loss: number | null
+          red_reason: string | null
+          result: string | null
+          score_at_entry: string | null
+          selection: string
+          service_id: string
+          stake: number
+          status: Database["public"]["Enums"]["bet_status"]
+          target_profit: number | null
+          target_units: number | null
+          teams: string | null
+          telegram_text: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alert_type?: string | null
+          bet_code?: string | null
+          bet_date?: string
+          bet_time?: string
+          betlabel_link?: string | null
+          bookmaker_id?: string | null
+          closed_at?: string | null
+          competition?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          market: string
+          match: string
+          match_minute?: number | null
+          notes?: string | null
+          odd: number
+          player?: string | null
+          profit_loss?: number | null
+          red_reason?: string | null
+          result?: string | null
+          score_at_entry?: string | null
+          selection: string
+          service_id: string
+          stake: number
+          status?: Database["public"]["Enums"]["bet_status"]
+          target_profit?: number | null
+          target_units?: number | null
+          teams?: string | null
+          telegram_text?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alert_type?: string | null
+          bet_code?: string | null
+          bet_date?: string
+          bet_time?: string
+          betlabel_link?: string | null
+          bookmaker_id?: string | null
+          closed_at?: string | null
+          competition?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          market?: string
+          match?: string
+          match_minute?: number | null
+          notes?: string | null
+          odd?: number
+          player?: string | null
+          profit_loss?: number | null
+          red_reason?: string | null
+          result?: string | null
+          score_at_entry?: string | null
+          selection?: string
+          service_id?: string
+          stake?: number
+          status?: Database["public"]["Enums"]["bet_status"]
+          target_profit?: number | null
+          target_units?: number | null
+          teams?: string | null
+          telegram_text?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bets_bookmaker_id_fkey"
+            columns: ["bookmaker_id"]
+            isOneToOne: false
+            referencedRelation: "bookmakers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bets_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookmakers: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          active: boolean
+          code: string
+          color: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      telegram_templates: {
+        Row: {
+          id: string
+          service_code: string
+          template_text: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          service_code: string
+          template_text: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          service_code?: string
+          template_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "editor" | "viewer"
+      bet_status: "pending" | "green" | "red" | "void" | "cashout"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +509,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "editor", "viewer"],
+      bet_status: ["pending", "green", "red", "void", "cashout"],
+    },
   },
 } as const
