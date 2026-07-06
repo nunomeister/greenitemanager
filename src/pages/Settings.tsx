@@ -57,7 +57,7 @@ export default function Settings() {
 
   const changeUserRole = async (userId: string, role: string) => {
     await supabase.from('user_roles').delete().eq('user_id', userId);
-    await supabase.from('user_roles').insert({ user_id: userId, role });
+    await supabase.from('user_roles').insert({ user_id: userId, role: role as 'admin' | 'editor' | 'viewer' });
     toast.success('Função atualizada');
     load();
   };
