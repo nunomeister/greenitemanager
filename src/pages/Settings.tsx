@@ -18,7 +18,7 @@ export default function Settings() {
   const load = async () => {
     const [s, br, bk, pr, ur] = await Promise.all([
       supabase.from('settings').select('*'),
-      supabase.from('bankroll').select('*').single(),
+      supabase.from('bankroll').select('*').maybeSingle(),
       supabase.from('bookmakers').select('*').order('name'),
       supabase.from('profiles').select('*'),
       supabase.from('user_roles').select('*'),
