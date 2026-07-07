@@ -12,7 +12,7 @@ export default function Bankroll() {
   useEffect(() => {
     (async () => {
       const [br, mv, bp, ba] = await Promise.all([
-        supabase.from('bankroll').select('*').single(),
+        supabase.from('bankroll').select('*').maybeSingle(),
         supabase.from('bankroll_movements').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('bets').select('stake').eq('status', 'pending'),
         supabase.from('bets').select('status, profit_loss, closed_at').neq('status', 'pending').order('closed_at'),

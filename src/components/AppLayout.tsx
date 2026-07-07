@@ -7,13 +7,13 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/bets/new', icon: PlusCircle, label: 'Nova Aposta', requireEdit: true },
-  { to: '/bets/import', icon: Sparkles, label: 'Import IA', requireEdit: true },
+  { to: '/bets/new', icon: PlusCircle, label: 'Nova Aposta' },
+  { to: '/bets/import', icon: Sparkles, label: 'Import IA', requireAdmin: true },
   { to: '/bets/pending', icon: Clock, label: 'Pendentes' },
   { to: '/bets/results', icon: ListChecks, label: 'Resultados' },
   { to: '/bankroll', icon: Wallet, label: 'Banca' },
-  { to: '/templates', icon: MessageSquare, label: 'Templates' },
-  { to: '/settings', icon: Settings, label: 'Definições', requireAdmin: true },
+  { to: '/templates', icon: MessageSquare, label: 'Templates', requireAdmin: true },
+  { to: '/settings', icon: Settings, label: 'Definições' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -23,7 +23,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const items = navItems.filter(i => {
     if (i.requireAdmin) return canAdmin(role);
-    if (i.requireEdit) return canEdit(role);
     return true;
   });
 

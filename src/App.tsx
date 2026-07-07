@@ -35,13 +35,13 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/" element={<Protected><Dashboard /></Protected>} />
-            <Route path="/bets/new" element={<Protected requireRole={['admin','editor']}><NewBet /></Protected>} />
-            <Route path="/bets/import" element={<Protected requireRole={['admin','editor']}><ImportBet /></Protected>} />
+            <Route path="/bets/new" element={<Protected><NewBet /></Protected>} />
+            <Route path="/bets/import" element={<Protected requireRole="admin"><ImportBet /></Protected>} />
             <Route path="/bets/pending" element={<Protected><PendingBets /></Protected>} />
             <Route path="/bets/results" element={<Protected><Results /></Protected>} />
             <Route path="/bankroll" element={<Protected><Bankroll /></Protected>} />
-            <Route path="/templates" element={<Protected><Templates /></Protected>} />
-            <Route path="/settings" element={<Protected requireRole="admin"><SettingsPage /></Protected>} />
+            <Route path="/templates" element={<Protected requireRole="admin"><Templates /></Protected>} />
+            <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

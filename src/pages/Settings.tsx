@@ -4,36 +4,51 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Trash2, Plus } from 'lucide-react';
+import { Loader2, Save, Trash2, Plus, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth, canAdmin } from '@/hooks/useAuth';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function Settings() {
+  const { role, user } = useAuth();
+  const admin = canAdmin(role);
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [bankroll, setBankroll] = useState<any>({ initial_amount: 0, current_amount: 0 });
   const [bookmakers, setBookmakers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [newBookie, setNewBookie] = useState('');
   const [loading, setLoading] = useState(true);
+  const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0);
+  const [resetting, setResetting] = useState(false);
 
   const load = async () => {
-    const [s, br, bk, pr, ur] = await Promise.all([
-      supabase.from('settings').select('*'),
-      supabase.from('bankroll').select('*').maybeSingle(),
-      supabase.from('bookmakers').select('*').order('name'),
-      supabase.from('profiles').select('*'),
-      supabase.from('user_roles').select('*'),
-    ]);
-    const map: any = {};
-    (s.data ?? []).forEach((r: any) => { map[r.key] = r.value; });
-    setSettings(map);
-    setBankroll(br.data ?? { initial_amount: 0, current_amount: 0 });
-    setBookmakers(bk.data ?? []);
-    const byUser: Record<string, string[]> = {};
-    (ur.data ?? []).forEach((r: any) => { (byUser[r.user_id] ??= []).push(r.role); });
-    setUsers((pr.data ?? []).map((p: any) => ({ ...p, roles: byUser[p.id] ?? [] })));
+    if (!user) return;
+    const promises: any[] = [
+      supabase.from('bankroll').select('*').eq('user_id', user.id).maybeSingle(),
+    ];
+    if (admin) {
+      promises.push(
+        supabase.from('settings').select('*'),
+        supabase.from('bookmakers').select('*').order('name'),
+        supabase.from('profiles').select('*'),
+        supabase.from('user_roles').select('*'),
+      );
+    }
+    const results = await Promise.all(promises);
+    setBankroll(results[0].data ?? { initial_amount: 0, current_amount: 0 });
+    if (admin) {
+      const [, s, bk, pr, ur] = results;
+      const map: any = {};
+      (s.data ?? []).forEach((r: any) => { map[r.key] = r.value; });
+      setSettings(map);
+      setBookmakers(bk.data ?? []);
+      const byUser: Record<string, string[]> = {};
+      (ur.data ?? []).forEach((r: any) => { (byUser[r.user_id] ??= []).push(r.role); });
+      setUsers((pr.data ?? []).map((p: any) => ({ ...p, roles: byUser[p.id] ?? [] })));
+    }
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user, admin]);
 
   const saveSetting = async (key: string, value: any) => {
     const { error } = await supabase.from('settings').update({ value }).eq('key', key);
@@ -41,10 +56,9 @@ export default function Settings() {
   };
 
   const saveBankroll = async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
+    if (!user) return;
     const { error } = await supabase.from('bankroll').upsert({
-      user_id: u.user.id,
+      user_id: user.id,
       initial_amount: bankroll.initial_amount,
       current_amount: bankroll.current_amount,
     }, { onConflict: 'user_id' });
@@ -68,74 +82,112 @@ export default function Settings() {
     load();
   };
 
+  const doReset = async () => {
+    setResetting(true);
+    const { error } = await supabase.rpc('reset_my_data');
+    setResetting(false);
+    setConfirmStep(0);
+    if (error) toast.error(error.message);
+    else { toast.success('Dados reiniciados com sucesso'); load(); }
+  };
+
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Definições</h1>
-        <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider">☣ Configuração da infeção</p>
+        <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider">☣ Configuração da conta</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="glass-card rounded-xl p-5 space-y-4">
-          <h3 className="font-semibold">Unidades e stakes</h3>
+          <h3 className="font-semibold">A minha banca</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>1 unidade (€)</Label><Input type="number" value={settings.unit_1 ?? 50} onChange={e=>setSettings(s=>({...s, unit_1: Number(e.target.value)}))} onBlur={e=>saveSetting('unit_1', Number(e.target.value))} /></div>
-            <div><Label>2 unidades (€)</Label><Input type="number" value={settings.unit_2 ?? 100} onChange={e=>setSettings(s=>({...s, unit_2: Number(e.target.value)}))} onBlur={e=>saveSetting('unit_2', Number(e.target.value))} /></div>
-          </div>
-          <div><Label>Link BetLabel padrão</Label><Input value={settings.default_betlabel_link ?? ''} onChange={e=>setSettings(s=>({...s, default_betlabel_link: e.target.value}))} onBlur={e=>saveSetting('default_betlabel_link', e.target.value)} /></div>
-          <div><Label>Canal Telegram</Label><Input value={settings.telegram_channel ?? ''} onChange={e=>setSettings(s=>({...s, telegram_channel: e.target.value}))} onBlur={e=>saveSetting('telegram_channel', e.target.value)} /></div>
-          <div><Label>Frase final</Label><Input value={settings.closing_phrase ?? ''} onChange={e=>setSettings(s=>({...s, closing_phrase: e.target.value}))} onBlur={e=>saveSetting('closing_phrase', e.target.value)} /></div>
-        </div>
-
-        <div className="glass-card rounded-xl p-5 space-y-4">
-          <h3 className="font-semibold">Banca</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Banca inicial</Label><Input type="number" value={bankroll.initial_amount} onChange={e=>setBankroll((b:any)=>({...b, initial_amount: Number(e.target.value)}))} /></div>
-            <div><Label>Banca atual</Label><Input type="number" value={bankroll.current_amount} onChange={e=>setBankroll((b:any)=>({...b, current_amount: Number(e.target.value)}))} /></div>
+            <div><Label>Banca inicial (€)</Label><Input type="number" value={bankroll.initial_amount} onChange={e=>setBankroll((b:any)=>({...b, initial_amount: Number(e.target.value)}))} /></div>
+            <div><Label>Banca atual (€)</Label><Input type="number" value={bankroll.current_amount} onChange={e=>setBankroll((b:any)=>({...b, current_amount: Number(e.target.value)}))} /></div>
           </div>
           <Button onClick={saveBankroll} className="bg-gradient-neon text-primary-foreground"><Save className="h-4 w-4 mr-2" /> Guardar banca</Button>
         </div>
 
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold">Casas de apostas</h3>
-          <div className="flex gap-2">
-            <Input placeholder="Nova casa..." value={newBookie} onChange={e=>setNewBookie(e.target.value)} />
-            <Button onClick={addBookie}><Plus className="h-4 w-4" /></Button>
-          </div>
-          <div className="space-y-1">
-            {bookmakers.map(b => (
-              <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded bg-muted/30">
-                <span>{b.name}</span>
-                <Button size="sm" variant="ghost" onClick={()=>removeBookie(b.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-              </div>
-            ))}
-          </div>
+        <div className="glass-card rounded-xl p-5 space-y-3 border-destructive/40">
+          <h3 className="font-semibold flex items-center gap-2 text-destructive"><AlertTriangle className="h-4 w-4" /> Zona de perigo</h3>
+          <p className="text-sm text-muted-foreground">Reinicia por completo os teus dados: apostas, histórico, banca, resultados e estatísticas. Só afeta a tua conta.</p>
+          <Button variant="destructive" onClick={()=>setConfirmStep(1)}><Trash2 className="h-4 w-4 mr-2" /> Reset da minha banca</Button>
         </div>
 
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold">Utilizadores</h3>
-          <div className="space-y-2">
-            {users.map(u => (
-              <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded bg-muted/30">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{u.display_name || '—'}</div>
-                  <div className="text-xs text-muted-foreground truncate">{u.id.slice(0,8)}</div>
-                </div>
-                <Select value={u.roles[0] ?? 'viewer'} onValueChange={v=>changeUserRole(u.id, v)}>
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="editor">Editor</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
+        {admin && (
+          <>
+            <div className="glass-card rounded-xl p-5 space-y-4">
+              <h3 className="font-semibold">Unidades e stakes</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>1 unidade (€)</Label><Input type="number" value={settings.unit_1 ?? 50} onChange={e=>setSettings(s=>({...s, unit_1: Number(e.target.value)}))} onBlur={e=>saveSetting('unit_1', Number(e.target.value))} /></div>
+                <div><Label>2 unidades (€)</Label><Input type="number" value={settings.unit_2 ?? 100} onChange={e=>setSettings(s=>({...s, unit_2: Number(e.target.value)}))} onBlur={e=>saveSetting('unit_2', Number(e.target.value))} /></div>
               </div>
-            ))}
-          </div>
-        </div>
+              <div><Label>Link BetLabel padrão</Label><Input value={settings.default_betlabel_link ?? ''} onChange={e=>setSettings(s=>({...s, default_betlabel_link: e.target.value}))} onBlur={e=>saveSetting('default_betlabel_link', e.target.value)} /></div>
+              <div><Label>Canal Telegram</Label><Input value={settings.telegram_channel ?? ''} onChange={e=>setSettings(s=>({...s, telegram_channel: e.target.value}))} onBlur={e=>saveSetting('telegram_channel', e.target.value)} /></div>
+              <div><Label>Frase final</Label><Input value={settings.closing_phrase ?? ''} onChange={e=>setSettings(s=>({...s, closing_phrase: e.target.value}))} onBlur={e=>saveSetting('closing_phrase', e.target.value)} /></div>
+            </div>
+
+            <div className="glass-card rounded-xl p-5 space-y-3">
+              <h3 className="font-semibold">Casas de apostas</h3>
+              <div className="flex gap-2">
+                <Input placeholder="Nova casa..." value={newBookie} onChange={e=>setNewBookie(e.target.value)} />
+                <Button onClick={addBookie}><Plus className="h-4 w-4" /></Button>
+              </div>
+              <div className="space-y-1">
+                {bookmakers.map(b => (
+                  <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded bg-muted/30">
+                    <span>{b.name}</span>
+                    <Button size="sm" variant="ghost" onClick={()=>removeBookie(b.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass-card rounded-xl p-5 space-y-3 lg:col-span-2">
+              <h3 className="font-semibold">Utilizadores</h3>
+              <div className="space-y-2">
+                {users.map(u => (
+                  <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded bg-muted/30">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{u.display_name || '—'}</div>
+                      <div className="text-xs text-muted-foreground truncate">{u.id.slice(0,8)}</div>
+                    </div>
+                    <Select value={u.roles[0] ?? 'viewer'} onValueChange={v=>changeUserRole(u.id, v)}>
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={confirmStep === 1}
+        onOpenChange={(o) => !o && setConfirmStep(0)}
+        title="Reset da minha banca"
+        description={`Tens a certeza que queres fazer reset à tua banca?\n\nEsta ação vai apagar permanentemente todas as tuas apostas, histórico, estatísticas e resultados.\n\nNão será possível recuperar estes dados.`}
+        confirmLabel="Continuar"
+        destructive
+        onConfirm={() => setConfirmStep(2)}
+      />
+      <ConfirmDialog
+        open={confirmStep === 2}
+        onOpenChange={(o) => !o && setConfirmStep(0)}
+        title="Última confirmação"
+        description="Esta é a segunda e última confirmação. Ao continuar, todos os teus dados serão apagados imediatamente e de forma irreversível."
+        confirmLabel={resetting ? 'A reiniciar...' : 'Sim, apagar tudo'}
+        destructive
+        onConfirm={doReset}
+      />
     </div>
   );
 }
