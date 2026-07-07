@@ -6,9 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Check, X, Ban, RotateCcw, Edit2, Loader2 } from 'lucide-react';
+import { Copy, Check, X, Ban, RotateCcw, Edit2, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth, canEdit } from '@/hooks/useAuth';
+import { useAuth, canAdmin } from '@/hooks/useAuth';
+import EditBetDialog from '@/components/EditBetDialog';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function PendingBets() {
   const [bets, setBets] = useState<any[]>([]);
@@ -20,6 +22,9 @@ export default function PendingBets() {
   const [closeResult, setCloseResult] = useState('');
   const [closeReason, setCloseReason] = useState('');
   const { role } = useAuth();
+  const admin = canAdmin(role);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState<any | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -107,22 +112,39 @@ export default function PendingBets() {
 
               {bet.confidence && <div className="mb-3 text-sm">Confiança: {'💀'.repeat(bet.confidence)}</div>}
 
-              {canEdit(role) && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                  <Button size="sm" className="bg-success/20 hover:bg-success/30 text-success border border-success/40" onClick={()=>openClose(bet, 'green')}><Check className="h-3.5 w-3.5 mr-1" />Green</Button>
-                  <Button size="sm" className="bg-destructive/20 hover:bg-destructive/30 text-destructive border border-destructive/40" onClick={()=>openClose(bet, 'red')}><X className="h-3.5 w-3.5 mr-1" />Red</Button>
-                  <Button size="sm" variant="outline" onClick={()=>openClose(bet, 'void')}><Ban className="h-3.5 w-3.5 mr-1" />Void</Button>
-                  <Button size="sm" variant="outline" onClick={()=>openClose(bet, 'cashout')}>💵 Cashout</Button>
-                </div>
-              )}
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" variant="ghost" onClick={()=>copyTelegram(bet)}><Copy className="h-3.5 w-3.5 mr-1" />Telegram</Button>
-                {canEdit(role) && <Button size="sm" variant="ghost" onClick={()=>duplicate(bet)}><RotateCcw className="h-3.5 w-3.5 mr-1" />Duplicar</Button>}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                <Button size="sm" className="bg-success/20 hover:bg-success/30 text-success border border-success/40" onClick={()=>openClose(bet, 'green')}><Check className="h-3.5 w-3.5 mr-1" />Green</Button>
+                <Button size="sm" className="bg-destructive/20 hover:bg-destructive/30 text-destructive border border-destructive/40" onClick={()=>openClose(bet, 'red')}><X className="h-3.5 w-3.5 mr-1" />Red</Button>
+                <Button size="sm" variant="outline" onClick={()=>openClose(bet, 'void')}><Ban className="h-3.5 w-3.5 mr-1" />Void</Button>
+                <Button size="sm" variant="outline" onClick={()=>openClose(bet, 'cashout')}>💵 Cashout</Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Button size="sm" variant="ghost" onClick={()=>setEditing(bet)}><Edit2 className="h-3.5 w-3.5 mr-1" />Editar</Button>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={()=>setDeleting(bet)}><Trash2 className="h-3.5 w-3.5 mr-1" />Apagar</Button>
+                {admin && <Button size="sm" variant="ghost" onClick={()=>copyTelegram(bet)}><Copy className="h-3.5 w-3.5 mr-1" />Telegram</Button>}
+                {admin && <Button size="sm" variant="ghost" onClick={()=>duplicate(bet)}><RotateCcw className="h-3.5 w-3.5 mr-1" />Duplicar</Button>}
               </div>
             </div>
           );
         })}
       </div>
+
+      <EditBetDialog bet={editing} onClose={()=>setEditing(null)} onSaved={load} />
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o)=>!o && setDeleting(null)}
+        title="Apagar aposta?"
+        description={`Tens a certeza que queres apagar esta aposta?\n\n${deleting?.match ?? ''}\n\nEsta ação não pode ser anulada.`}
+        confirmLabel="Apagar"
+        destructive
+        onConfirm={async () => {
+          if (!deleting) return;
+          const { error } = await supabase.from('bets').delete().eq('id', deleting.id);
+          if (error) toast.error(error.message);
+          else { toast.success('Aposta apagada'); load(); }
+          setDeleting(null);
+        }}
+      />
 
       <Dialog open={!!closing} onOpenChange={(o)=>!o && setClosing(null)}>
         <DialogContent>

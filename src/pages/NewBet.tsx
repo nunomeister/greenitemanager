@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SERVICE_META, ServiceCode, calcStakeFromTarget, fillTemplate } from '@/lib/services';
 import { toast } from 'sonner';
 import { Skull, Loader2, Copy } from 'lucide-react';
+import { useAuth, canAdmin } from '@/hooks/useAuth';
 
 interface Service { id: string; code: string; name: string; emoji: string; }
 interface Bookmaker { id: string; name: string; }
@@ -16,6 +17,8 @@ interface Settings { unit_1: number; unit_2: number; default_betlabel_link: stri
 
 export default function NewBet() {
   const nav = useNavigate();
+  const { role } = useAuth();
+  const admin = canAdmin(role);
   const [services, setServices] = useState<Service[]>([]);
   const [bookmakers, setBookmakers] = useState<Bookmaker[]>([]);
   const [templates, setTemplates] = useState<Record<string, string>>({});
@@ -89,12 +92,12 @@ export default function NewBet() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.service_id) { toast.error('Escolhe um serviço'); return; }
+    if (admin && !form.service_id) { toast.error('Escolhe um serviço'); return; }
     setLoading(true);
     const { data: userData } = await supabase.auth.getUser();
-    const telegram_text = previewTelegram();
-    const payload = {
-      service_id: form.service_id,
+    const telegram_text = admin ? previewTelegram() : null;
+    const payload: any = {
+      service_id: admin ? form.service_id : null,
       bet_date: form.bet_date,
       bet_time: form.bet_time,
       competition: form.competition || null,
@@ -108,14 +111,14 @@ export default function NewBet() {
       target_units: form.target_units ? Number(form.target_units) : null,
       target_profit: form.target_profit ? Number(form.target_profit) : null,
       confidence: Number(form.confidence),
-      bet_code: form.bet_code || null,
+      bet_code: admin ? (form.bet_code || null) : null,
       bookmaker_id: form.bookmaker_id || null,
-      betlabel_link: form.betlabel_link || null,
+      betlabel_link: admin ? (form.betlabel_link || null) : null,
       notes: form.notes || null,
       telegram_text,
       match_minute: form.match_minute ? Number(form.match_minute) : null,
-      alert_type: form.alert_type || null,
-      score_at_entry: form.score_at_entry || null,
+      alert_type: admin ? (form.alert_type || null) : null,
+      score_at_entry: admin ? (form.score_at_entry || null) : null,
       created_by: userData.user?.id,
       user_id: userData.user?.id,
     };
@@ -135,20 +138,22 @@ export default function NewBet() {
         <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider mt-1">☣ Injetar novo prognóstico</p>
       </div>
 
-      {/* Service selector */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        {services.map(s => {
-          const m = SERVICE_META[s.code as ServiceCode];
-          const active = form.service_id === s.id;
-          return (
-            <button key={s.id} type="button" onClick={() => update('service_id', s.id)}
-              className={`glass-card rounded-xl p-3 text-left transition-all ${active ? `ring-2 ${m?.ringClass} shadow-neon` : 'hover:border-primary/30'}`}>
-              <div className="text-2xl">{s.emoji}</div>
-              <div className={`text-sm font-semibold mt-1 ${m?.colorClass ?? ''}`}>{s.name}</div>
-            </button>
-          );
-        })}
-      </div>
+      {/* Service selector (admin only) */}
+      {admin && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {services.map(s => {
+            const m = SERVICE_META[s.code as ServiceCode];
+            const active = form.service_id === s.id;
+            return (
+              <button key={s.id} type="button" onClick={() => update('service_id', s.id)}
+                className={`glass-card rounded-xl p-3 text-left transition-all ${active ? `ring-2 ${m?.ringClass} shadow-neon` : 'hover:border-primary/30'}`}>
+                <div className="text-2xl">{s.emoji}</div>
+                <div className={`text-sm font-semibold mt-1 ${m?.colorClass ?? ''}`}>{s.name}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card rounded-xl p-5 space-y-4">
@@ -165,7 +170,7 @@ export default function NewBet() {
           <div><Label>Aposta</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
           <div><Label>Jogador (se aplicável)</Label><Input value={form.player} onChange={e=>update('player', e.target.value)} /></div>
 
-          {isAlert && (
+          {admin && isAlert && (
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
               <div><Label>Minuto</Label><Input type="number" value={form.match_minute} onChange={e=>update('match_minute', e.target.value)} /></div>
               <div className="col-span-2"><Label>Tipo de alerta</Label>
@@ -229,16 +234,16 @@ export default function NewBet() {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Código da aposta</Label><Input value={form.bet_code} onChange={e=>update('bet_code', e.target.value)} /></div>
+            {admin && <div><Label>Código da aposta</Label><Input value={form.bet_code} onChange={e=>update('bet_code', e.target.value)} /></div>}
           </div>
 
-          <div><Label>Link BetLabel</Label><Input value={form.betlabel_link} onChange={e=>update('betlabel_link', e.target.value)} placeholder="https://betlabel..." /></div>
+          {admin && <div><Label>Link BetLabel</Label><Input value={form.betlabel_link} onChange={e=>update('betlabel_link', e.target.value)} placeholder="https://betlabel..." /></div>}
           <div><Label>Notas internas</Label><Textarea value={form.notes} onChange={e=>update('notes', e.target.value)} rows={2} /></div>
         </div>
       </div>
 
-      {/* Telegram preview */}
-      {serviceCode && (
+      {/* Telegram preview (admin only) */}
+      {admin && serviceCode && (
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold">📱 Preview Telegram</h3>

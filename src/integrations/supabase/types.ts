@@ -134,7 +134,7 @@ export type Database = {
           result: string | null
           score_at_entry: string | null
           selection: string
-          service_id: string
+          service_id: string | null
           stake: number
           status: Database["public"]["Enums"]["bet_status"]
           target_profit: number | null
@@ -169,7 +169,7 @@ export type Database = {
           result?: string | null
           score_at_entry?: string | null
           selection: string
-          service_id: string
+          service_id?: string | null
           stake: number
           status?: Database["public"]["Enums"]["bet_status"]
           target_profit?: number | null
@@ -204,7 +204,7 @@ export type Database = {
           result?: string | null
           score_at_entry?: string | null
           selection?: string
-          service_id?: string
+          service_id?: string | null
           stake?: number
           status?: Database["public"]["Enums"]["bet_status"]
           target_profit?: number | null
@@ -385,6 +385,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      reset_my_data: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "editor" | "viewer"
