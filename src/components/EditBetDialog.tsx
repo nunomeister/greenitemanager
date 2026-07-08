@@ -45,6 +45,7 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
       bookmaker_id: bet.bookmaker_id ?? '',
       betlabel_link: bet.betlabel_link ?? '',
       telegram_text: bet.telegram_text ?? '',
+      image_urls: Array.isArray(bet.image_urls) ? bet.image_urls : [],
     });
     if (admin) {
       (async () => {
