@@ -86,6 +86,4 @@ function BetImageThumb({ path }: { path: string }) {
   if (!url) return <ImageIcon className="h-6 w-6 text-muted-foreground" />;
   return <img src={url} alt="print" className="w-full h-full object-cover" />;
 }
-  if (!url) return <ImageIcon className="h-6 w-6 text-muted-foreground" />;
-  return <img src={url} alt="print" className="w-full h-full object-cover" />;
-}
+
