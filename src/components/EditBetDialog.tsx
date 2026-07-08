@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
+import BetImagesUploader from '@/components/BetImagesUploader';
 
 interface Props {
   bet: any | null;
