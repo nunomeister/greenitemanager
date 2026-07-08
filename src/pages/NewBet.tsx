@@ -10,6 +10,7 @@ import { SERVICE_META, ServiceCode, calcStakeFromTarget, fillTemplate } from '@/
 import { toast } from 'sonner';
 import { Skull, Loader2, Copy } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
+import BetImagesUploader from '@/components/BetImagesUploader';
 
 interface Service { id: string; code: string; name: string; emoji: string; }
 interface Bookmaker { id: string; name: string; }
@@ -17,13 +18,14 @@ interface Settings { unit_1: number; unit_2: number; default_betlabel_link: stri
 
 export default function NewBet() {
   const nav = useNavigate();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const admin = canAdmin(role);
   const [services, setServices] = useState<Service[]>([]);
   const [bookmakers, setBookmakers] = useState<Bookmaker[]>([]);
   const [templates, setTemplates] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Settings>({ unit_1: 50, unit_2: 100, default_betlabel_link: '' });
   const [loading, setLoading] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
 
   const [form, setForm] = useState<any>({
     service_id: '',
@@ -33,6 +35,7 @@ export default function NewBet() {
     odd: '', stake: '', target_profit: '', target_units: '',
     confidence: 3, bet_code: '', bookmaker_id: '', betlabel_link: '',
     notes: '', match_minute: '', alert_type: '', score_at_entry: '',
+    status: 'pending', profit_loss: '', result: '',
   });
   const [unitMode, setUnitMode] = useState<'1'|'2'|'custom'>('1');
 
@@ -56,15 +59,13 @@ export default function NewBet() {
         unit_2: Number(cfgMap.unit_2 ?? 100),
         default_betlabel_link: String(cfgMap.default_betlabel_link ?? ''),
       });
-      setForm((f: any) => ({ ...f, betlabel_link: String(cfgMap.default_betlabel_link ?? '') }));
+      if (admin) setForm((f: any) => ({ ...f, betlabel_link: String(cfgMap.default_betlabel_link ?? '') }));
     })();
-  }, []);
+  }, [admin]);
 
   const currentService = services.find(s => s.id === form.service_id);
   const serviceCode = currentService?.code as ServiceCode | undefined;
-  const meta = serviceCode ? SERVICE_META[serviceCode] : null;
 
-  // Auto-calc stake from target profit + odd
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   const applyUnit = (mode: '1'|'2'|'custom', customTarget?: number) => {
@@ -83,19 +84,31 @@ export default function NewBet() {
 
   const previewTelegram = () => {
     if (!serviceCode || !templates[serviceCode]) return '';
-    return fillTemplate(templates[serviceCode], {
-      ...form,
-      confidence: form.confidence,
-      stake: form.stake ? `${form.stake}€` : '',
-    });
+    return fillTemplate(templates[serviceCode], { ...form, confidence: form.confidence, stake: form.stake ? `${form.stake}€` : '' });
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (admin && !form.service_id) { toast.error('Escolhe um serviço'); return; }
+    // Validação essencial
+    const errors: string[] = [];
+    if (!form.competition?.trim()) errors.push('Competição');
+    if (!form.match?.trim()) errors.push('Jogo');
+    if (!form.market?.trim()) errors.push('Mercado');
+    if (!form.selection?.trim()) errors.push('Aposta');
+    const oddN = Number(form.odd), stakeN = Number(form.stake);
+    if (!oddN || oddN <= 1) errors.push('Odd (>1)');
+    if (!stakeN || stakeN <= 0) errors.push('Stake (>0)');
+    if (admin && !form.service_id) errors.push('Serviço');
+    if (errors.length) { toast.error('Preenche: ' + errors.join(', ')); return; }
+
     setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
+    const uid = user?.id;
     const telegram_text = admin ? previewTelegram() : null;
+    let profit_loss: number | null = null;
+    if (form.status === 'green') profit_loss = +(stakeN * (oddN - 1)).toFixed(2);
+    else if (form.status === 'red') profit_loss = -stakeN;
+    else if (form.status === 'void' || form.status === 'cashout') profit_loss = form.profit_loss !== '' ? Number(form.profit_loss) : 0;
+
     const payload: any = {
       service_id: admin ? form.service_id : null,
       bet_date: form.bet_date,
@@ -106,8 +119,8 @@ export default function NewBet() {
       market: form.market,
       selection: form.selection,
       player: form.player || null,
-      odd: Number(form.odd),
-      stake: Number(form.stake),
+      odd: oddN,
+      stake: stakeN,
       target_units: form.target_units ? Number(form.target_units) : null,
       target_profit: form.target_profit ? Number(form.target_profit) : null,
       confidence: Number(form.confidence),
@@ -116,21 +129,88 @@ export default function NewBet() {
       betlabel_link: admin ? (form.betlabel_link || null) : null,
       notes: form.notes || null,
       telegram_text,
-      match_minute: form.match_minute ? Number(form.match_minute) : null,
+      match_minute: admin && form.match_minute ? Number(form.match_minute) : null,
       alert_type: admin ? (form.alert_type || null) : null,
       score_at_entry: admin ? (form.score_at_entry || null) : null,
-      created_by: userData.user?.id,
-      user_id: userData.user?.id,
+      status: form.status,
+      profit_loss,
+      result: form.result || null,
+      image_urls: images,
+      created_by: uid,
+      user_id: uid,
     };
     const { error } = await supabase.from('bets').insert(payload as any);
     setLoading(false);
     if (error) { toast.error(error.message); return; }
     toast.success('Aposta criada.');
-    nav('/bets/pending');
+    nav(form.status === 'pending' ? '/bets/pending' : '/bets/results');
   };
 
   const isAlert = serviceCode === 'infection_alert';
 
+  // Formulário simplificado para utilizadores normais
+  if (!admin) {
+    return (
+      <form onSubmit={submit} className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Nova aposta</h1>
+          <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider mt-1">☣ Registar aposta pessoal</p>
+        </div>
+
+        <div className="glass-card rounded-xl p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Data</Label><Input type="date" value={form.bet_date} onChange={e=>update('bet_date', e.target.value)} /></div>
+            <div><Label>Hora</Label><Input type="time" value={form.bet_time} onChange={e=>update('bet_time', e.target.value)} /></div>
+          </div>
+          <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
+          <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
+            <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label>Odd *</Label><Input required type="number" step="0.01" min="1.01" value={form.odd} onChange={e=>update('odd', e.target.value)} /></div>
+            <div><Label>Stake (€) *</Label><Input required type="number" step="0.01" min="0.01" value={form.stake} onChange={e=>update('stake', e.target.value)} /></div>
+            <div><Label>Resultado</Label>
+              <Select value={form.status} onValueChange={v=>update('status', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="green">Green</SelectItem>
+                  <SelectItem value="red">Red</SelectItem>
+                  <SelectItem value="void">Void</SelectItem>
+                  <SelectItem value="cashout">Cashout</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Casa de apostas</Label>
+            <Select value={form.bookmaker_id} onValueChange={v=>update('bookmaker_id', v)}>
+              <SelectTrigger><SelectValue placeholder="Escolher..." /></SelectTrigger>
+              <SelectContent>
+                {bookmakers.map(b=><SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>Notas (opcional)</Label><Textarea value={form.notes} onChange={e=>update('notes', e.target.value)} rows={2} /></div>
+          <div>
+            <Label>Prints da aposta</Label>
+            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} />}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <Button type="submit" disabled={loading} className="bg-gradient-neon text-primary-foreground shadow-neon">
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Criar aposta
+          </Button>
+          <Button type="button" variant="outline" onClick={()=>nav(-1)}>Cancelar</Button>
+        </div>
+      </form>
+    );
+  }
+
+  // Formulário admin completo
   return (
     <form onSubmit={submit} className="space-y-6">
       <div>
@@ -138,22 +218,20 @@ export default function NewBet() {
         <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider mt-1">☣ Injetar novo prognóstico</p>
       </div>
 
-      {/* Service selector (admin only) */}
-      {admin && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          {services.map(s => {
-            const m = SERVICE_META[s.code as ServiceCode];
-            const active = form.service_id === s.id;
-            return (
-              <button key={s.id} type="button" onClick={() => update('service_id', s.id)}
-                className={`glass-card rounded-xl p-3 text-left transition-all ${active ? `ring-2 ${m?.ringClass} shadow-neon` : 'hover:border-primary/30'}`}>
-                <div className="text-2xl">{s.emoji}</div>
-                <div className={`text-sm font-semibold mt-1 ${m?.colorClass ?? ''}`}>{s.name}</div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {services.map(s => {
+          const m = SERVICE_META[s.code as ServiceCode];
+          if (!m) return null;
+          const active = form.service_id === s.id;
+          return (
+            <button key={s.id} type="button" onClick={() => update('service_id', s.id)}
+              className={`glass-card rounded-xl p-3 text-left transition-all ${active ? `ring-2 ${m.ringClass} shadow-neon` : 'hover:border-primary/30'}`}>
+              <div className="text-2xl">{s.emoji}</div>
+              <div className={`text-sm font-semibold mt-1 ${m.colorClass}`}>{s.name}</div>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card rounded-xl p-5 space-y-4">
@@ -163,14 +241,14 @@ export default function NewBet() {
             <div><Label>Data</Label><Input type="date" value={form.bet_date} onChange={e=>update('bet_date', e.target.value)} /></div>
             <div><Label>Hora</Label><Input type="time" value={form.bet_time} onChange={e=>update('bet_time', e.target.value)} /></div>
           </div>
-          <div><Label>Competição</Label><Input value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
-          <div><Label>Jogo</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
+          <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
+          <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
           <div><Label>Equipas</Label><Input value={form.teams} onChange={e=>update('teams', e.target.value)} placeholder="Casa / Fora" /></div>
-          <div><Label>Mercado</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
-          <div><Label>Aposta</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
+          <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
+          <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
           <div><Label>Jogador (se aplicável)</Label><Input value={form.player} onChange={e=>update('player', e.target.value)} /></div>
 
-          {admin && isAlert && (
+          {isAlert && (
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
               <div><Label>Minuto</Label><Input type="number" value={form.match_minute} onChange={e=>update('match_minute', e.target.value)} /></div>
               <div className="col-span-2"><Label>Tipo de alerta</Label>
@@ -208,12 +286,12 @@ export default function NewBet() {
               <Input type="number" step="0.01" value={form.target_profit}
                 onChange={e=>{ setUnitMode('custom'); const t = Number(e.target.value); const odd = Number(form.odd); setForm((f:any)=>({...f, target_profit: e.target.value, stake: odd>1?calcStakeFromTarget(t, odd):f.stake })); }}/>
             </div>
-            <div><Label>Odd</Label><Input required type="number" step="0.01" min="1.01" value={form.odd} onChange={e=>onOddChange(e.target.value)} /></div>
+            <div><Label>Odd *</Label><Input required type="number" step="0.01" min="1.01" value={form.odd} onChange={e=>onOddChange(e.target.value)} /></div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Stake calculada (€)</Label>
-              <Input required type="number" step="0.01" value={form.stake} onChange={e=>update('stake', e.target.value)} className="font-mono text-lg neon-text" />
+            <div><Label>Stake calculada (€) *</Label>
+              <Input required type="number" step="0.01" min="0.01" value={form.stake} onChange={e=>update('stake', e.target.value)} className="font-mono text-lg neon-text" />
             </div>
             <div><Label>Confiança</Label>
               <Select value={String(form.confidence)} onValueChange={v=>update('confidence', v)}>
@@ -234,16 +312,19 @@ export default function NewBet() {
                 </SelectContent>
               </Select>
             </div>
-            {admin && <div><Label>Código da aposta</Label><Input value={form.bet_code} onChange={e=>update('bet_code', e.target.value)} /></div>}
+            <div><Label>Código da aposta</Label><Input value={form.bet_code} onChange={e=>update('bet_code', e.target.value)} /></div>
           </div>
 
-          {admin && <div><Label>Link BetLabel</Label><Input value={form.betlabel_link} onChange={e=>update('betlabel_link', e.target.value)} placeholder="https://betlabel..." /></div>}
+          <div><Label>Link BetLabel</Label><Input value={form.betlabel_link} onChange={e=>update('betlabel_link', e.target.value)} placeholder="https://betlabel..." /></div>
           <div><Label>Notas internas</Label><Textarea value={form.notes} onChange={e=>update('notes', e.target.value)} rows={2} /></div>
+          <div>
+            <Label>Prints da aposta</Label>
+            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} />}
+          </div>
         </div>
       </div>
 
-      {/* Telegram preview (admin only) */}
-      {admin && serviceCode && (
+      {serviceCode && (
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold">📱 Preview Telegram</h3>
