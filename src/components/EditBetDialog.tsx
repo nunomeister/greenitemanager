@@ -137,6 +137,19 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
           )}
           <div><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={e=>upd('notes', e.target.value)} /></div>
 
+          <div>
+            <Label>Prints da aposta</Label>
+            {user && (
+              <BetImagesUploader
+                userId={bet.user_id ?? user.id}
+                value={form.image_urls ?? []}
+                onChange={(urls)=>upd('image_urls', urls)}
+                canEdit={admin || bet.user_id === user.id}
+              />
+            )}
+          </div>
+
+
           {admin && (
             <div className="pt-3 mt-2 border-t border-border space-y-3">
               <div className="text-xs uppercase tracking-widest text-primary font-mono">Campos administrativos</div>
