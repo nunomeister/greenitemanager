@@ -78,10 +78,14 @@ export default function BetImagesUploader({ userId, value, onChange, canEdit = t
 
 function BetImageThumb({ path }: { path: string }) {
   const [url, setUrl] = useState<string | null>(null);
-  useState(() => {
-    supabase.storage.from('bet-prints').createSignedUrl(path, 60 * 10).then(({ data }) => setUrl(data?.signedUrl ?? null));
-    return undefined;
-  });
+  useEffect(() => {
+    let alive = true;
+    supabase.storage.from('bet-prints').createSignedUrl(path, 60 * 10).then(({ data }) => { if (alive) setUrl(data?.signedUrl ?? null); });
+    return () => { alive = false; };
+  }, [path]);
+  if (!url) return <ImageIcon className="h-6 w-6 text-muted-foreground" />;
+  return <img src={url} alt="print" className="w-full h-full object-cover" />;
+}
   if (!url) return <ImageIcon className="h-6 w-6 text-muted-foreground" />;
   return <img src={url} alt="print" className="w-full h-full object-cover" />;
 }
