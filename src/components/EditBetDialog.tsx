@@ -78,6 +78,7 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
       profit_loss: form.profit_loss === '' ? null : Number(form.profit_loss),
       result: form.result || null,
       notes: form.notes || null,
+      image_urls: form.image_urls ?? [],
       updated_by: (await supabase.auth.getUser()).data.user?.id,
     };
     if (admin) {
