@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const admin = canAdmin(role);
   const [form, setForm] = useState<any>(null);
   const [services, setServices] = useState<any[]>([]);
