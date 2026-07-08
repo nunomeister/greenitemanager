@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
+import BetImagesUploader from '@/components/BetImagesUploader';
 
 interface Props {
   bet: any | null;
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const admin = canAdmin(role);
   const [form, setForm] = useState<any>(null);
   const [services, setServices] = useState<any[]>([]);
@@ -44,6 +45,7 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
       bookmaker_id: bet.bookmaker_id ?? '',
       betlabel_link: bet.betlabel_link ?? '',
       telegram_text: bet.telegram_text ?? '',
+      image_urls: Array.isArray(bet.image_urls) ? bet.image_urls : [],
     });
     if (admin) {
       (async () => {
@@ -76,6 +78,7 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
       profit_loss: form.profit_loss === '' ? null : Number(form.profit_loss),
       result: form.result || null,
       notes: form.notes || null,
+      image_urls: form.image_urls ?? [],
       updated_by: (await supabase.auth.getUser()).data.user?.id,
     };
     if (admin) {
@@ -133,6 +136,19 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
             </div>
           )}
           <div><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={e=>upd('notes', e.target.value)} /></div>
+
+          <div>
+            <Label>Prints da aposta</Label>
+            {user && (
+              <BetImagesUploader
+                userId={bet.user_id ?? user.id}
+                value={form.image_urls ?? []}
+                onChange={(urls)=>upd('image_urls', urls)}
+                canEdit={admin || bet.user_id === user.id}
+              />
+            )}
+          </div>
+
 
           {admin && (
             <div className="pt-3 mt-2 border-t border-border space-y-3">

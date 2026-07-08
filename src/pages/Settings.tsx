@@ -87,8 +87,10 @@ export default function Settings() {
     const { error } = await supabase.rpc('reset_my_data');
     setResetting(false);
     setConfirmStep(0);
-    if (error) toast.error(error.message);
-    else { toast.success('Dados reiniciados com sucesso'); load(); }
+    if (error) { toast.error(error.message); return; }
+    toast.success('Dados reiniciados com sucesso. A recarregar...');
+    // Full reload to invalidate all page caches (dashboard, bankroll, results)
+    setTimeout(() => window.location.assign('/dashboard'), 700);
   };
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;

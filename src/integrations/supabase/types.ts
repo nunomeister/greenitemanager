@@ -123,6 +123,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          image_urls: Json
           market: string
           match: string
           match_minute: number | null
@@ -158,6 +159,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_urls?: Json
           market: string
           match: string
           match_minute?: number | null
@@ -193,6 +195,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_urls?: Json
           market?: string
           match?: string
           match_minute?: number | null

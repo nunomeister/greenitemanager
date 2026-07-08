@@ -211,6 +211,12 @@ export default function Dashboard() {
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(var(--warning))', 'hsl(var(--toxic))', 'hsl(var(--gold))'];
+const RESULT_COLORS: Record<string, string> = {
+  Green: 'hsl(var(--success))',
+  Red: 'hsl(var(--destructive))',
+  Void: 'hsl(var(--muted-foreground))',
+  Cashout: 'hsl(var(--warning))',
+};
 
 function AdvancedAnalysis({ bets, admin, f, setF, setPeriod }: any) {
   const filtered = useMemo(() => bets.filter((b: any) => {
@@ -338,25 +344,39 @@ function AdvancedAnalysis({ bets, admin, f, setF, setPeriod }: any) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="glass-card rounded-xl p-4">
           <h3 className="font-semibold mb-3">Lucro por mercado (top 10)</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={byMarket.slice(0, 10)} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={110} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-              <Bar dataKey="profit" fill="hsl(var(--primary))" radius={[0,4,4,0]} />
+          <ResponsiveContainer width="100%" height={Math.max(260, Math.min(byMarket.length, 10) * 34 + 40)}>
+            <BarChart data={byMarket.slice(0, 10)} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v)=>`${v}€`} />
+              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={140} interval={0} tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 17) + '…' : v} />
+              <Tooltip
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                formatter={(v: any) => [`${Number(v).toFixed(2)}€`, 'Lucro']}
+              />
+              <Bar dataKey="profit" radius={[0,4,4,0]}>
+                {byMarket.slice(0, 10).map((entry: any, i: number) => (
+                  <Cell key={i} fill={entry.profit >= 0 ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="glass-card rounded-xl p-4">
           <h3 className="font-semibold mb-3">Lucro por competição (top 10)</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={byCompetition.slice(0, 10)} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={110} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-              <Bar dataKey="profit" fill="hsl(var(--success))" radius={[0,4,4,0]} />
+          <ResponsiveContainer width="100%" height={Math.max(260, Math.min(byCompetition.length, 10) * 34 + 40)}>
+            <BarChart data={byCompetition.slice(0, 10)} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v)=>`${v}€`} />
+              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={140} interval={0} tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 17) + '…' : v} />
+              <Tooltip
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                formatter={(v: any) => [`${Number(v).toFixed(2)}€`, 'Lucro']}
+              />
+              <Bar dataKey="profit" radius={[0,4,4,0]}>
+                {byCompetition.slice(0, 10).map((entry: any, i: number) => (
+                  <Cell key={i} fill={entry.profit >= 0 ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -368,7 +388,7 @@ function AdvancedAnalysis({ bets, admin, f, setF, setPeriod }: any) {
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={distribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80}>
-                {distribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {distribution.map((entry, i) => <Cell key={i} fill={RESULT_COLORS[entry.name] ?? 'hsl(var(--muted-foreground))'} />)}
               </Pie>
               <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
               <Legend />
