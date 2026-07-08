@@ -211,6 +211,12 @@ export default function Dashboard() {
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(var(--warning))', 'hsl(var(--toxic))', 'hsl(var(--gold))'];
+const RESULT_COLORS: Record<string, string> = {
+  Green: 'hsl(var(--success))',
+  Red: 'hsl(var(--destructive))',
+  Void: 'hsl(var(--muted-foreground))',
+  Cashout: 'hsl(var(--warning))',
+};
 
 function AdvancedAnalysis({ bets, admin, f, setF, setPeriod }: any) {
   const filtered = useMemo(() => bets.filter((b: any) => {
