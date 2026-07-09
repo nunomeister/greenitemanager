@@ -36,7 +36,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/" element={<Protected><Dashboard /></Protected>} />
             <Route path="/bets/new" element={<Protected><NewBet /></Protected>} />
-            <Route path="/bets/import" element={<Protected><ImportBet /></Protected>} />
+            <Route path="/bets/import" element={<Protected requireRole="admin"><ImportBet /></Protected>} />
             <Route path="/bets/pending" element={<Protected><PendingBets /></Protected>} />
             <Route path="/bets/results" element={<Protected><Results /></Protected>} />
             <Route path="/bankroll" element={<Protected><Bankroll /></Protected>} />
