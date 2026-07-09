@@ -9,9 +9,10 @@ interface Props {
   value: string[];
   onChange: (urls: string[]) => void;
   canEdit?: boolean;
+  onFilesUploaded?: (files: File[]) => void | Promise<void>;
 }
 
-export default function BetImagesUploader({ userId, value, onChange, canEdit = true }: Props) {
+export default function BetImagesUploader({ userId, value, onChange, canEdit = true, onFilesUploaded }: Props) {
   const [uploading, setUploading] = useState(false);
 
   const openSignedUrl = async (path: string) => {
@@ -23,6 +24,7 @@ export default function BetImagesUploader({ userId, value, onChange, canEdit = t
     if (!files?.length) return;
     setUploading(true);
     const newPaths: string[] = [];
+    const uploadedFiles: File[] = [];
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) { toast.error(`${file.name}: só imagens`); continue; }
       if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name}: máx 8MB`); continue; }
@@ -30,11 +32,15 @@ export default function BetImagesUploader({ userId, value, onChange, canEdit = t
       const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
       const { error } = await supabase.storage.from('bet-prints').upload(path, file, { cacheControl: '3600', upsert: false });
       if (error) toast.error(error.message);
-      else newPaths.push(path);
+      else {
+        newPaths.push(path);
+        uploadedFiles.push(file);
+      }
     }
     setUploading(false);
     if (newPaths.length) {
       onChange([...(value ?? []), ...newPaths]);
+      void onFilesUploaded?.(uploadedFiles);
       toast.success(`${newPaths.length} imagem(ns) carregada(s)`);
     }
   };
