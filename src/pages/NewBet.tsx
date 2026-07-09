@@ -8,13 +8,34 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SERVICE_META, ServiceCode, calcStakeFromTarget, fillTemplate } from '@/lib/services';
 import { toast } from 'sonner';
-import { Skull, Loader2, Copy } from 'lucide-react';
+import { Skull, Loader2, Copy, Sparkles } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
 import BetImagesUploader from '@/components/BetImagesUploader';
 
 interface Service { id: string; code: string; name: string; emoji: string; }
 interface Bookmaker { id: string; name: string; }
 interface Settings { unit_1: number; unit_2: number; default_betlabel_link: string; }
+
+type ExtractedBet = {
+  match?: string;
+  competition?: string;
+  market?: string;
+  selection?: string;
+  player?: string | null;
+  odd?: number;
+  stake?: number;
+  bet_date?: string | null;
+  bet_time?: string | null;
+  bet_code?: string | null;
+  bookmaker?: string | null;
+};
+
+const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
 
 export default function NewBet() {
   const nav = useNavigate();
@@ -25,6 +46,7 @@ export default function NewBet() {
   const [templates, setTemplates] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Settings>({ unit_1: 50, unit_2: 100, default_betlabel_link: '' });
   const [loading, setLoading] = useState(false);
+  const [analyzingPrint, setAnalyzingPrint] = useState(false);
   const [images, setImages] = useState<string[]>([]);
 
   const [form, setForm] = useState<any>({
@@ -67,6 +89,47 @@ export default function NewBet() {
   const serviceCode = currentService?.code as ServiceCode | undefined;
 
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const applyExtractedBet = (bet: ExtractedBet) => {
+    const matchedBookmaker = bet.bookmaker
+      ? bookmakers.find(b => b.name.toLowerCase().includes(bet.bookmaker!.toLowerCase()) || bet.bookmaker!.toLowerCase().includes(b.name.toLowerCase()))
+      : null;
+
+    setForm((f: any) => ({
+      ...f,
+      bet_date: bet.bet_date || f.bet_date,
+      bet_time: bet.bet_time || f.bet_time,
+      competition: bet.competition ?? f.competition,
+      match: bet.match ?? f.match,
+      market: bet.market ?? f.market,
+      selection: bet.selection ?? f.selection,
+      player: bet.player ?? f.player,
+      odd: bet.odd != null ? String(bet.odd) : f.odd,
+      stake: bet.stake != null ? String(bet.stake) : f.stake,
+      bet_code: admin ? (bet.bet_code ?? f.bet_code) : f.bet_code,
+      bookmaker_id: matchedBookmaker?.id ?? f.bookmaker_id,
+    }));
+  };
+
+  const analyzeUploadedPrints = async (files: File[]) => {
+    const file = files.find(f => f.type.startsWith('image/'));
+    if (!file) return;
+    setAnalyzingPrint(true);
+    try {
+      const image = await fileToDataUrl(file);
+      const { data, error } = await supabase.functions.invoke('parse-bet-slip', {
+        body: { mode: 'slip', image },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      applyExtractedBet(data as ExtractedBet);
+      toast.success('Print analisado — dados preenchidos automaticamente');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Falha ao analisar o print');
+    } finally {
+      setAnalyzingPrint(false);
+    }
+  };
 
   const applyUnit = (mode: '1'|'2'|'custom', customTarget?: number) => {
     setUnitMode(mode);
@@ -195,8 +258,11 @@ export default function NewBet() {
           </div>
           <div><Label>Notas (opcional)</Label><Textarea value={form.notes} onChange={e=>update('notes', e.target.value)} rows={2} /></div>
           <div>
-            <Label>Prints da aposta</Label>
-            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} />}
+            <Label className="flex items-center gap-2">
+              Prints da aposta
+              {analyzingPrint && <span className="inline-flex items-center gap-1 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> IA a preencher</span>}
+            </Label>
+            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} onFilesUploaded={analyzeUploadedPrints} />}
           </div>
         </div>
 
@@ -318,8 +384,11 @@ export default function NewBet() {
           <div><Label>Link BetLabel</Label><Input value={form.betlabel_link} onChange={e=>update('betlabel_link', e.target.value)} placeholder="https://betlabel..." /></div>
           <div><Label>Notas internas</Label><Textarea value={form.notes} onChange={e=>update('notes', e.target.value)} rows={2} /></div>
           <div>
-            <Label>Prints da aposta</Label>
-            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} />}
+            <Label className="flex items-center gap-2">
+              Prints da aposta
+              {analyzingPrint && <span className="inline-flex items-center gap-1 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> IA a preencher</span>}
+            </Label>
+            {user && <BetImagesUploader userId={user.id} value={images} onChange={setImages} onFilesUploaded={analyzeUploadedPrints} />}
           </div>
         </div>
       </div>
@@ -338,7 +407,7 @@ export default function NewBet() {
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading} className="bg-gradient-neon text-primary-foreground shadow-neon">
-          {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Criar aposta
+          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Criar aposta
         </Button>
         <Button type="button" variant="outline" onClick={()=>nav(-1)}>Cancelar</Button>
       </div>
