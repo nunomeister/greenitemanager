@@ -133,7 +133,7 @@ export default function NewBet() {
 
   const applyUnit = (mode: '1'|'2'|'custom', customTarget?: number) => {
     setUnitMode(mode);
-    const target = mode === '1' ? settings.unit_1 : mode === '2' ? settings.unit_2 : customTarget ?? Number(form.target_profit) ?? 0;
+    const target = mode === '1' ? settings.unit_1 : mode === '2' ? settings.unit_2 : (customTarget ?? Number(form.target_profit || 0));
     const odd = Number(form.odd);
     const stake = odd > 1 ? calcStakeFromTarget(target, odd) : 0;
     setForm((f: any) => ({ ...f, target_profit: target, target_units: mode === '1' ? 1 : mode === '2' ? 2 : f.target_units, stake }));
