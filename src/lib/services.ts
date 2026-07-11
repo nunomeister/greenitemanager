@@ -14,14 +14,57 @@ export const BET_STATUS_META: Record<string, { label: string; className: string 
   cashout: { label: 'Cashout',  className: 'bg-warning/20 text-warning border-warning/40' },
 };
 
+export type BetLeg = {
+  competition?: string | null;
+  match?: string | null;
+  market?: string | null;
+  selection?: string | null;
+  odd?: number | string | null;
+};
+
 export function calcStakeFromTarget(targetProfit: number, odd: number): number {
   if (!odd || odd <= 1 || !targetProfit) return 0;
   return +(targetProfit / (odd - 1)).toFixed(2);
 }
 
+export function formatBetLegs(legs: BetLeg[] = []): string {
+  return legs.map((leg, index) => {
+    const odd = Number(leg.odd || 0);
+    return `${index + 1}. ${leg.match || 'Jogo'} — ${leg.market || 'Mercado'} — ${leg.selection || 'Seleção'} @ ${odd ? odd.toFixed(2) : '—'}`;
+  }).join('\n');
+}
+
+export function getBetOddTotal(bet: Record<string, any>): number {
+  if (bet.odd) return Number(bet.odd);
+  const legs = Array.isArray(bet.legs) ? bet.legs : [];
+  return legs.reduce((total: number, leg: BetLeg) => total * (Number(leg.odd) || 1), 1);
+}
+
+export function enrichBetForTemplate(bet: Record<string, any>): Record<string, any> {
+  if (!bet.is_multiple) return bet;
+  const legs = Array.isArray(bet.legs) ? bet.legs as BetLeg[] : [];
+  if (legs.length === 0) return bet;
+
+  const legsList = formatBetLegs(legs);
+  const oddTotal = getBetOddTotal(bet);
+  const selectionSummary = legs.map((leg) => `${leg.match || 'Jogo'}: ${leg.selection || 'Seleção'}`).join(' + ');
+
+  return {
+    ...bet,
+    competition: bet.competition || 'Acumulada',
+    match: `Acumulada (${legs.length} seleções)\n${legsList}`,
+    market: 'Acumulada',
+    selection: selectionSummary,
+    odd: oddTotal ? oddTotal.toFixed(2) : bet.odd,
+    odd_total: oddTotal ? oddTotal.toFixed(2) : bet.odd,
+    legs_list: legsList,
+  };
+}
+
 export function fillTemplate(tpl: string, bet: Record<string, any>): string {
+  const data = enrichBetForTemplate(bet);
   return tpl.replace(/\{(\w+)\}/g, (_, k) => {
-    const v = bet[k];
+    const v = data[k];
     if (v === null || v === undefined || v === '') return '—';
     return String(v);
   });

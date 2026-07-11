@@ -9,6 +9,7 @@ import { useAuth, canAdmin } from '@/hooks/useAuth';
 import EditBetDialog from '@/components/EditBetDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
+import BetLegsDisplay from '@/components/BetLegsDisplay';
 
 export default function Results() {
   const { role } = useAuth();
@@ -103,10 +104,16 @@ export default function Results() {
                   <td className="p-3 font-mono text-xs">{b.bet_date}</td>
                   {admin && <td className="p-3">{b.service?.emoji} <span className="text-xs">{b.service?.name}</span></td>}
                   <td className="p-3">
-                    <div className="font-medium">{b.match}</div>
-                    <div className="text-xs text-muted-foreground">{b.competition}</div>
+                    {b.is_multiple ? (
+                      <BetLegsDisplay bet={b} compact />
+                    ) : (
+                      <>
+                        <div className="font-medium">{b.match}</div>
+                        <div className="text-xs text-muted-foreground">{b.competition}</div>
+                      </>
+                    )}
                   </td>
-                  <td className="p-3"><div>{b.market}</div><div className="text-xs text-muted-foreground">{b.selection}</div></td>
+                  <td className="p-3"><div>{b.is_multiple ? 'Acumulada' : b.market}</div><div className="text-xs text-muted-foreground">{b.is_multiple ? `${(b.legs ?? []).length} seleções` : b.selection}</div></td>
                   <td className="p-3 text-right font-mono">{Number(b.odd).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono">{Number(b.stake).toFixed(2)}€</td>
                   <td className="p-3 text-center"><span className={`inline-block px-2 py-0.5 rounded-full text-xs border ${BET_STATUS_META[b.status]?.className}`}>{BET_STATUS_META[b.status]?.label}</span></td>

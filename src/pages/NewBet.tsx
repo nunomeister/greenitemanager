@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SERVICE_META, ServiceCode, calcStakeFromTarget, fillTemplate } from '@/lib/services';
+import type { BetLeg } from '@/lib/services';
 import { toast } from 'sonner';
-import { Skull, Loader2, Copy, Sparkles } from 'lucide-react';
+import { Skull, Loader2, Copy, Sparkles, Plus, Trash2 } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
 import BetImagesUploader from '@/components/BetImagesUploader';
 
@@ -28,6 +29,8 @@ type ExtractedBet = {
   bet_time?: string | null;
   bet_code?: string | null;
   bookmaker?: string | null;
+  is_multiple?: boolean;
+  legs?: BetLeg[];
 };
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -36,6 +39,8 @@ const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, rej
   reader.onerror = reject;
   reader.readAsDataURL(file);
 });
+
+const emptyLeg = (): BetLeg => ({ competition: '', match: '', market: '', selection: '', odd: '' });
 
 export default function NewBet() {
   const nav = useNavigate();
@@ -48,6 +53,8 @@ export default function NewBet() {
   const [loading, setLoading] = useState(false);
   const [analyzingPrint, setAnalyzingPrint] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  const [isMultiple, setIsMultiple] = useState(false);
+  const [legs, setLegs] = useState<BetLeg[]>([emptyLeg(), emptyLeg()]);
 
   const [form, setForm] = useState<any>({
     service_id: '',
@@ -87,13 +94,58 @@ export default function NewBet() {
 
   const currentService = services.find(s => s.id === form.service_id);
   const serviceCode = currentService?.code as ServiceCode | undefined;
+  const oddTotal = useMemo(() => {
+    if (!isMultiple) return Number(form.odd) || 0;
+    return legs.reduce((total, leg) => total * (Number(leg.odd) || 0), 1);
+  }, [form.odd, isMultiple, legs]);
 
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (!isMultiple || !form.target_profit || oddTotal <= 1) return;
+    setForm((f: any) => ({ ...f, stake: calcStakeFromTarget(Number(f.target_profit), oddTotal) }));
+  }, [isMultiple, oddTotal, form.target_profit]);
+
+  const normalizedLegs = () => legs.map((leg) => ({
+    competition: String(leg.competition ?? '').trim(),
+    match: String(leg.match ?? '').trim(),
+    market: String(leg.market ?? '').trim(),
+    selection: String(leg.selection ?? '').trim(),
+    odd: Number(leg.odd),
+  }));
+
+  const multipleSummary = (cleanLegs = normalizedLegs()) => ({
+    match: `Acumulada (${cleanLegs.length} seleções)`,
+    competition: 'Acumulada',
+    market: 'Acumulada',
+    selection: cleanLegs.map((leg) => `${leg.match}: ${leg.selection}`).join(' + '),
+  });
+
+  const updateLeg = (index: number, key: keyof BetLeg, value: string) => {
+    setLegs((current) => current.map((leg, i) => i === index ? { ...leg, [key]: value } : leg));
+  };
+
+  const addLeg = () => setLegs((current) => [...current, emptyLeg()]);
+
+  const removeLeg = (index: number) => {
+    setLegs((current) => current.length <= 2 ? current : current.filter((_, i) => i !== index));
+  };
 
   const applyExtractedBet = (bet: ExtractedBet) => {
     const matchedBookmaker = bet.bookmaker
       ? bookmakers.find(b => b.name.toLowerCase().includes(bet.bookmaker!.toLowerCase()) || bet.bookmaker!.toLowerCase().includes(b.name.toLowerCase()))
       : null;
+
+    if (Array.isArray(bet.legs) && bet.legs.length >= 2) {
+      setIsMultiple(true);
+      setLegs(bet.legs.map((leg) => ({
+        competition: leg.competition ?? bet.competition ?? '',
+        match: leg.match ?? '',
+        market: leg.market ?? '',
+        selection: leg.selection ?? '',
+        odd: leg.odd != null ? String(leg.odd) : '',
+      })));
+    }
 
     setForm((f: any) => ({
       ...f,
@@ -134,7 +186,7 @@ export default function NewBet() {
   const applyUnit = (mode: '1'|'2'|'custom', customTarget?: number) => {
     setUnitMode(mode);
     const target = mode === '1' ? settings.unit_1 : mode === '2' ? settings.unit_2 : (customTarget ?? Number(form.target_profit || 0));
-    const odd = Number(form.odd);
+    const odd = isMultiple ? oddTotal : Number(form.odd);
     const stake = odd > 1 ? calcStakeFromTarget(target, odd) : 0;
     setForm((f: any) => ({ ...f, target_profit: target, target_units: mode === '1' ? 1 : mode === '2' ? 2 : f.target_units, stake }));
   };
@@ -147,18 +199,74 @@ export default function NewBet() {
 
   const previewTelegram = () => {
     if (!serviceCode || !templates[serviceCode]) return '';
-    return fillTemplate(templates[serviceCode], { ...form, confidence: form.confidence, stake: form.stake ? `${form.stake}€` : '' });
+    const cleanLegs = normalizedLegs();
+    const betForTemplate = isMultiple
+      ? { ...form, ...multipleSummary(cleanLegs), is_multiple: true, legs: cleanLegs, odd: oddTotal, confidence: form.confidence, stake: form.stake ? `${form.stake}€` : '' }
+      : { ...form, is_multiple: false, legs: [], confidence: form.confidence, stake: form.stake ? `${form.stake}€` : '' };
+    return fillTemplate(templates[serviceCode], betForTemplate);
   };
+
+  const renderBetTypeToggle = () => (
+    <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/20 p-1">
+      <Button type="button" variant={!isMultiple ? 'default' : 'ghost'} onClick={() => setIsMultiple(false)} className={!isMultiple ? 'bg-gradient-neon text-primary-foreground' : ''}>
+        Aposta simples
+      </Button>
+      <Button type="button" variant={isMultiple ? 'default' : 'ghost'} onClick={() => setIsMultiple(true)} className={isMultiple ? 'bg-gradient-neon text-primary-foreground' : ''}>
+        Aposta acumulada
+      </Button>
+    </div>
+  );
+
+  const renderLegsEditor = () => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label>Seleções da acumulada *</Label>
+        <Button type="button" size="sm" variant="outline" onClick={addLeg}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
+      </div>
+      {legs.map((leg, index) => (
+        <div key={index} className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wider text-primary font-mono">Seleção {index + 1}</div>
+            <Button type="button" size="sm" variant="ghost" disabled={legs.length <= 2} onClick={() => removeLeg(index)} className="text-destructive hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div><Label>Competição *</Label><Input required={isMultiple} value={leg.competition ?? ''} onChange={e=>updateLeg(index, 'competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
+          <div><Label>Jogo *</Label><Input required={isMultiple} value={leg.match ?? ''} onChange={e=>updateLeg(index, 'match', e.target.value)} placeholder="Benfica vs Porto" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Mercado *</Label><Input required={isMultiple} value={leg.market ?? ''} onChange={e=>updateLeg(index, 'market', e.target.value)} placeholder="+2.5 golos" /></div>
+            <div><Label>Seleção *</Label><Input required={isMultiple} value={leg.selection ?? ''} onChange={e=>updateLeg(index, 'selection', e.target.value)} placeholder="Over 2.5" /></div>
+          </div>
+          <div><Label>Odd *</Label><Input required={isMultiple} type="number" step="0.01" min="1.01" value={leg.odd ?? ''} onChange={e=>updateLeg(index, 'odd', e.target.value)} /></div>
+        </div>
+      ))}
+      <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 flex items-center justify-between gap-3">
+        <div>
+          <Label>Odd total</Label>
+          <div className="text-xs text-muted-foreground">Produto das odds de todas as seleções</div>
+        </div>
+        <div className="font-mono text-2xl font-bold neon-text">{oddTotal > 0 ? oddTotal.toFixed(2) : '—'}</div>
+      </div>
+    </div>
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Validação essencial
     const errors: string[] = [];
-    if (!form.competition?.trim()) errors.push('Competição');
-    if (!form.match?.trim()) errors.push('Jogo');
-    if (!form.market?.trim()) errors.push('Mercado');
-    if (!form.selection?.trim()) errors.push('Aposta');
-    const oddN = Number(form.odd), stakeN = Number(form.stake);
+    const cleanLegs = normalizedLegs();
+    if (isMultiple) {
+      if (cleanLegs.length < 2) errors.push('Mínimo 2 seleções');
+      cleanLegs.forEach((leg, index) => {
+        if (!leg.competition || !leg.match || !leg.market || !leg.selection || !leg.odd || leg.odd <= 1) errors.push(`Seleção ${index + 1}`);
+      });
+    } else {
+      if (!form.competition?.trim()) errors.push('Competição');
+      if (!form.match?.trim()) errors.push('Jogo');
+      if (!form.market?.trim()) errors.push('Mercado');
+      if (!form.selection?.trim()) errors.push('Aposta');
+    }
+    const oddN = isMultiple ? oddTotal : Number(form.odd), stakeN = Number(form.stake);
     if (!oddN || oddN <= 1) errors.push('Odd (>1)');
     if (!stakeN || stakeN <= 0) errors.push('Stake (>0)');
     if (admin && !form.service_id) errors.push('Serviço');
@@ -172,16 +280,17 @@ export default function NewBet() {
     else if (form.status === 'red') profit_loss = -stakeN;
     else if (form.status === 'void' || form.status === 'cashout') profit_loss = form.profit_loss !== '' ? Number(form.profit_loss) : 0;
 
+    const summary = isMultiple ? multipleSummary(cleanLegs) : null;
     const payload: any = {
       service_id: admin ? form.service_id : null,
       bet_date: form.bet_date,
       bet_time: form.bet_time,
-      competition: form.competition || null,
-      match: form.match,
-      teams: form.teams || null,
-      market: form.market,
-      selection: form.selection,
-      player: form.player || null,
+      competition: isMultiple ? summary?.competition : (form.competition || null),
+      match: isMultiple ? summary?.match : form.match,
+      teams: isMultiple ? null : (form.teams || null),
+      market: isMultiple ? summary?.market : form.market,
+      selection: isMultiple ? summary?.selection : form.selection,
+      player: isMultiple ? null : (form.player || null),
       odd: oddN,
       stake: stakeN,
       target_units: form.target_units ? Number(form.target_units) : null,
@@ -199,6 +308,8 @@ export default function NewBet() {
       profit_loss,
       result: form.result || null,
       image_urls: images,
+      is_multiple: isMultiple,
+      legs: isMultiple ? cleanLegs : [],
       created_by: uid,
       user_id: uid,
     };
@@ -221,18 +332,23 @@ export default function NewBet() {
         </div>
 
         <div className="glass-card rounded-xl p-5 space-y-4">
+          {renderBetTypeToggle()}
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Data</Label><Input type="date" value={form.bet_date} onChange={e=>update('bet_date', e.target.value)} /></div>
             <div><Label>Hora</Label><Input type="time" value={form.bet_time} onChange={e=>update('bet_time', e.target.value)} /></div>
           </div>
-          <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
-          <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
-            <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
-          </div>
+          {isMultiple ? renderLegsEditor() : (
+            <>
+              <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
+              <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
+                <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
+              </div>
+            </>
+          )}
           <div className="grid grid-cols-3 gap-3">
-            <div><Label>Odd *</Label><Input required type="number" step="0.01" min="1.01" value={form.odd} onChange={e=>update('odd', e.target.value)} /></div>
+            <div><Label>{isMultiple ? 'Odd total' : 'Odd *'}</Label><Input required readOnly={isMultiple} type="number" step="0.01" min="1.01" value={isMultiple ? (oddTotal > 0 ? oddTotal.toFixed(2) : '') : form.odd} onChange={e=>update('odd', e.target.value)} className={isMultiple ? 'font-mono neon-text' : ''} /></div>
             <div><Label>Stake (€) *</Label><Input required type="number" step="0.01" min="0.01" value={form.stake} onChange={e=>update('stake', e.target.value)} /></div>
             <div><Label>Resultado</Label>
               <Select value={form.status} onValueChange={v=>update('status', v)}>
@@ -302,19 +418,24 @@ export default function NewBet() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card rounded-xl p-5 space-y-4">
           <h3 className="font-semibold flex items-center gap-2"><Skull className="h-4 w-4 text-primary"/> Detalhes da aposta</h3>
+          {renderBetTypeToggle()}
 
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Data</Label><Input type="date" value={form.bet_date} onChange={e=>update('bet_date', e.target.value)} /></div>
             <div><Label>Hora</Label><Input type="time" value={form.bet_time} onChange={e=>update('bet_time', e.target.value)} /></div>
           </div>
-          <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
-          <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
-          <div><Label>Equipas</Label><Input value={form.teams} onChange={e=>update('teams', e.target.value)} placeholder="Casa / Fora" /></div>
-          <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
-          <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
-          <div><Label>Jogador (se aplicável)</Label><Input value={form.player} onChange={e=>update('player', e.target.value)} /></div>
+          {isMultiple ? renderLegsEditor() : (
+            <>
+              <div><Label>Competição *</Label><Input required value={form.competition} onChange={e=>update('competition', e.target.value)} placeholder="Ex: Primeira Liga" /></div>
+              <div><Label>Jogo *</Label><Input required value={form.match} onChange={e=>update('match', e.target.value)} placeholder="Benfica vs Porto" /></div>
+              <div><Label>Equipas</Label><Input value={form.teams} onChange={e=>update('teams', e.target.value)} placeholder="Casa / Fora" /></div>
+              <div><Label>Mercado *</Label><Input required value={form.market} onChange={e=>update('market', e.target.value)} placeholder="+2.5 golos" /></div>
+              <div><Label>Aposta *</Label><Input required value={form.selection} onChange={e=>update('selection', e.target.value)} placeholder="Over 2.5" /></div>
+              <div><Label>Jogador (se aplicável)</Label><Input value={form.player} onChange={e=>update('player', e.target.value)} /></div>
+            </>
+          )}
 
-          {isAlert && (
+          {isAlert && !isMultiple && (
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
               <div><Label>Minuto</Label><Input type="number" value={form.match_minute} onChange={e=>update('match_minute', e.target.value)} /></div>
               <div className="col-span-2"><Label>Tipo de alerta</Label>
@@ -350,9 +471,9 @@ export default function NewBet() {
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Lucro alvo (€)</Label>
               <Input type="number" step="0.01" value={form.target_profit}
-                onChange={e=>{ setUnitMode('custom'); const t = Number(e.target.value); const odd = Number(form.odd); setForm((f:any)=>({...f, target_profit: e.target.value, stake: odd>1?calcStakeFromTarget(t, odd):f.stake })); }}/>
+                onChange={e=>{ setUnitMode('custom'); const t = Number(e.target.value); const odd = isMultiple ? oddTotal : Number(form.odd); setForm((f:any)=>({...f, target_profit: e.target.value, stake: odd>1?calcStakeFromTarget(t, odd):f.stake })); }}/>
             </div>
-            <div><Label>Odd *</Label><Input required type="number" step="0.01" min="1.01" value={form.odd} onChange={e=>onOddChange(e.target.value)} /></div>
+            <div><Label>{isMultiple ? 'Odd total' : 'Odd *'}</Label><Input required readOnly={isMultiple} type="number" step="0.01" min="1.01" value={isMultiple ? (oddTotal > 0 ? oddTotal.toFixed(2) : '') : form.odd} onChange={e=>onOddChange(e.target.value)} className={isMultiple ? 'font-mono neon-text' : ''} /></div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

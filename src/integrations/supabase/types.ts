@@ -124,6 +124,8 @@ export type Database = {
           created_by: string | null
           id: string
           image_urls: Json
+          is_multiple: boolean
+          legs: Json
           market: string
           match: string
           match_minute: number | null
@@ -160,6 +162,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           image_urls?: Json
+          is_multiple?: boolean
+          legs?: Json
           market: string
           match: string
           match_minute?: number | null
@@ -196,6 +200,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           image_urls?: Json
+          is_multiple?: boolean
+          legs?: Json
           market?: string
           match?: string
           match_minute?: number | null

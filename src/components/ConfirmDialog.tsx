@@ -22,7 +22,7 @@ export default function ConfirmDialog({ open, onOpenChange, title, description, 
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={(e) => { e.preventDefault(); onConfirm(); }}
             className={destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
           >
             {confirmLabel}
