@@ -122,6 +122,17 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
   );
 
   const save = async () => {
+    const errors: string[] = [];
+    if (form.is_multiple) {
+      if (cleanLegs.length < 2) errors.push('mínimo 2 seleções');
+      cleanLegs.forEach((leg: BetLeg, index: number) => {
+        if (!leg.competition || !leg.match || !leg.market || !leg.selection || !leg.odd || Number(leg.odd) <= 1) errors.push(`seleção ${index + 1}`);
+      });
+      if (!oddTotal || oddTotal <= 1) errors.push('odd total');
+    }
+    if (!Number(form.stake) || Number(form.stake) <= 0) errors.push('stake');
+    if (errors.length) { toast.error('Corrige: ' + errors.join(', ')); return; }
+
     setSaving(true);
     const cleanLegs = normalizedLegs();
     const summary = form.is_multiple ? {

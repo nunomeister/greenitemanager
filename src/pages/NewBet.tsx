@@ -28,6 +28,8 @@ type ExtractedBet = {
   bet_time?: string | null;
   bet_code?: string | null;
   bookmaker?: string | null;
+  is_multiple?: boolean;
+  legs?: BetLeg[];
 };
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -127,6 +129,17 @@ export default function NewBet() {
     const matchedBookmaker = bet.bookmaker
       ? bookmakers.find(b => b.name.toLowerCase().includes(bet.bookmaker!.toLowerCase()) || bet.bookmaker!.toLowerCase().includes(b.name.toLowerCase()))
       : null;
+
+    if (Array.isArray(bet.legs) && bet.legs.length >= 2) {
+      setIsMultiple(true);
+      setLegs(bet.legs.map((leg) => ({
+        competition: leg.competition ?? bet.competition ?? '',
+        match: leg.match ?? '',
+        market: leg.market ?? '',
+        selection: leg.selection ?? '',
+        odd: leg.odd != null ? String(leg.odd) : '',
+      })));
+    }
 
     setForm((f: any) => ({
       ...f,
