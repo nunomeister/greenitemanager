@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Upload, Sparkles, FileCode, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import type { BetLeg } from '@/lib/services';
 
 interface Service { id: string; code: string; name: string; emoji: string }
 
@@ -18,6 +19,7 @@ type ExtractedBet = {
   bet_date?: string | null; bet_time?: string | null;
   bet_code?: string | null; bookmaker?: string | null;
   status?: 'pending' | 'green' | 'red' | 'void'; profit_loss?: number | null; result?: string | null;
+  is_multiple?: boolean; legs?: BetLeg[];
 };
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((res, rej) => {
@@ -32,6 +34,39 @@ const fileToText = (file: File): Promise<string> => new Promise((res, rej) => {
   r.onerror = rej;
   r.readAsText(file);
 });
+
+const cleanLegs = (legs?: BetLeg[]) => Array.isArray(legs) ? legs.map((leg) => ({
+  competition: String(leg.competition ?? '').trim(),
+  match: String(leg.match ?? '').trim(),
+  market: String(leg.market ?? '').trim(),
+  selection: String(leg.selection ?? '').trim(),
+  odd: Number(leg.odd),
+})).filter((leg) => leg.match && leg.selection && leg.odd > 1) : [];
+
+const summarizeBet = (bet: ExtractedBet) => {
+  const legs = cleanLegs(bet.legs);
+  const isMultiple = !!bet.is_multiple || legs.length >= 2;
+  if (!isMultiple) {
+    return {
+      isMultiple: false,
+      legs: [],
+      competition: bet.competition ?? null,
+      match: bet.match ?? 'Sem descrição',
+      market: bet.market ?? '—',
+      selection: bet.selection ?? '—',
+      odd: Number(bet.odd ?? 0),
+    };
+  }
+  return {
+    isMultiple: true,
+    legs,
+    competition: 'Acumulada',
+    match: `Acumulada (${legs.length} seleções)`,
+    market: 'Acumulada',
+    selection: legs.map((leg) => `${leg.match}: ${leg.selection}`).join(' + '),
+    odd: Number(bet.odd ?? legs.reduce((total, leg) => total * (Number(leg.odd) || 1), 1)),
+  };
+};
 
 export default function ImportBet() {
   const nav = useNavigate();
@@ -89,21 +124,24 @@ export default function ImportBet() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const now = new Date();
+    const summary = summarizeBet(slipBet);
     const payload = {
       service_id: slipService,
       user_id: u.user.id,
       created_by: u.user.id,
       bet_date: slipBet.bet_date || now.toISOString().slice(0, 10),
       bet_time: slipBet.bet_time || now.toTimeString().slice(0, 5),
-      competition: slipBet.competition ?? null,
-      match: slipBet.match ?? 'Sem descrição',
-      market: slipBet.market ?? '—',
-      selection: slipBet.selection ?? '—',
+      competition: summary.competition,
+      match: summary.match,
+      market: summary.market,
+      selection: summary.selection,
       player: slipBet.player ?? null,
-      odd: Number(slipBet.odd ?? 0),
+      odd: summary.odd,
       stake: Number(slipBet.stake ?? 0),
       bet_code: slipBet.bet_code ?? null,
       confidence: 3,
+      is_multiple: summary.isMultiple,
+      legs: summary.legs,
     };
     if (!payload.odd || !payload.stake) { toast.error('Odd e stake são obrigatórios'); return; }
     const { error } = await supabase.from('bets').insert(payload as any);
@@ -142,26 +180,31 @@ export default function ImportBet() {
     setImporting(true);
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) { setImporting(false); return; }
-    const rows = chosen.map(b => ({
-      service_id: histService,
-      user_id: u.user!.id,
-      created_by: u.user!.id,
-      bet_date: b.bet_date || new Date().toISOString().slice(0, 10),
-      bet_time: b.bet_time || '00:00',
-      competition: b.competition ?? null,
-      match: b.match ?? 'Sem descrição',
-      market: b.market ?? '—',
-      selection: b.selection ?? '—',
-      player: b.player ?? null,
-      odd: Number(b.odd ?? 0),
-      stake: Number(b.stake ?? 0),
-      bet_code: b.bet_code ?? null,
-      status: (b.status ?? 'pending') as any,
-      profit_loss: b.profit_loss ?? null,
-      result: b.result ?? null,
-      confidence: 3,
-      closed_at: b.status && b.status !== 'pending' ? new Date().toISOString() : null,
-    }));
+    const rows = chosen.map(b => {
+      const summary = summarizeBet(b);
+      return {
+        service_id: histService,
+        user_id: u.user!.id,
+        created_by: u.user!.id,
+        bet_date: b.bet_date || new Date().toISOString().slice(0, 10),
+        bet_time: b.bet_time || '00:00',
+        competition: summary.competition,
+        match: summary.match,
+        market: summary.market,
+        selection: summary.selection,
+        player: b.player ?? null,
+        odd: summary.odd,
+        stake: Number(b.stake ?? 0),
+        bet_code: b.bet_code ?? null,
+        status: (b.status ?? 'pending') as any,
+        profit_loss: b.profit_loss ?? null,
+        result: b.result ?? null,
+        confidence: 3,
+        closed_at: b.status && b.status !== 'pending' ? new Date().toISOString() : null,
+        is_multiple: summary.isMultiple,
+        legs: summary.legs,
+      };
+    });
     // Filter invalid
     const valid = rows.filter(r => r.odd > 0 && r.stake > 0);
     if (!valid.length) { toast.error('Sem apostas válidas (odd/stake em falta)'); setImporting(false); return; }
@@ -280,8 +323,8 @@ export default function ImportBet() {
                       <tr key={i} className="border-t border-border">
                         <td className="p-2"><Checkbox checked={!!histSelected[i]} onCheckedChange={v => setHistSelected(s => ({ ...s, [i]: !!v }))} /></td>
                         <td className="p-2 font-mono text-xs">{b.bet_date ?? '—'}</td>
-                        <td className="p-2">{b.match ?? '—'}</td>
-                        <td className="p-2">{b.selection ?? '—'}</td>
+                        <td className="p-2">{b.is_multiple ? `Acumulada (${cleanLegs(b.legs).length} seleções)` : (b.match ?? '—')}</td>
+                        <td className="p-2">{b.is_multiple ? cleanLegs(b.legs).map(l => l.selection).join(' + ') : (b.selection ?? '—')}</td>
                         <td className="p-2 text-right font-mono">{b.odd ?? '—'}</td>
                         <td className="p-2 text-right font-mono">{b.stake ?? '—'}€</td>
                         <td className="p-2 text-center uppercase text-xs font-mono">{b.status ?? 'pending'}</td>
