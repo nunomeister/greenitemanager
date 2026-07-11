@@ -100,6 +100,11 @@ export default function NewBet() {
 
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (!isMultiple || !form.target_profit || oddTotal <= 1) return;
+    setForm((f: any) => ({ ...f, stake: calcStakeFromTarget(Number(f.target_profit), oddTotal) }));
+  }, [isMultiple, oddTotal, form.target_profit]);
+
   const normalizedLegs = () => legs.map((leg) => ({
     competition: String(leg.competition ?? '').trim(),
     match: String(leg.match ?? '').trim(),
