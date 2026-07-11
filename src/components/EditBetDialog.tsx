@@ -122,6 +122,7 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
   );
 
   const save = async () => {
+    const cleanLegs = normalizedLegs();
     const errors: string[] = [];
     if (form.is_multiple) {
       if (cleanLegs.length < 2) errors.push('mínimo 2 seleções');
@@ -134,7 +135,6 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
     if (errors.length) { toast.error('Corrige: ' + errors.join(', ')); return; }
 
     setSaving(true);
-    const cleanLegs = normalizedLegs();
     const summary = form.is_multiple ? {
       competition: 'Acumulada',
       match: `Acumulada (${cleanLegs.length} seleções)`,
