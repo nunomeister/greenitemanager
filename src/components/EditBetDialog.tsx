@@ -7,15 +7,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
 import BetImagesUploader from '@/components/BetImagesUploader';
+import type { BetLeg } from '@/lib/services';
 
 interface Props {
   bet: any | null;
   onClose: () => void;
   onSaved: () => void;
 }
+
+const emptyLeg = (): BetLeg => ({ competition: '', match: '', market: '', selection: '', odd: '' });
 
 export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
   const { role, user } = useAuth();
@@ -46,6 +49,8 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
       betlabel_link: bet.betlabel_link ?? '',
       telegram_text: bet.telegram_text ?? '',
       image_urls: Array.isArray(bet.image_urls) ? bet.image_urls : [],
+      is_multiple: !!bet.is_multiple,
+      legs: Array.isArray(bet.legs) && bet.legs.length ? bet.legs : [emptyLeg(), emptyLeg()],
     });
     if (admin) {
       (async () => {
@@ -63,22 +68,84 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
 
   const upd = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  const normalizedLegs = () => (form.legs ?? []).map((leg: BetLeg) => ({
+    competition: String(leg.competition ?? '').trim(),
+    match: String(leg.match ?? '').trim(),
+    market: String(leg.market ?? '').trim(),
+    selection: String(leg.selection ?? '').trim(),
+    odd: Number(leg.odd),
+  }));
+
+  const oddTotal = form.is_multiple
+    ? normalizedLegs().reduce((total: number, leg: BetLeg) => total * (Number(leg.odd) || 0), 1)
+    : Number(form.odd || 0);
+
+  const updateLeg = (index: number, key: keyof BetLeg, value: string) => {
+    upd('legs', (form.legs ?? []).map((leg: BetLeg, i: number) => i === index ? { ...leg, [key]: value } : leg));
+  };
+
+  const addLeg = () => upd('legs', [...(form.legs ?? []), emptyLeg()]);
+
+  const removeLeg = (index: number) => {
+    if ((form.legs ?? []).length <= 2) return;
+    upd('legs', (form.legs ?? []).filter((_: BetLeg, i: number) => i !== index));
+  };
+
+  const renderLegsEditor = () => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label>Seleções da acumulada</Label>
+        <Button type="button" size="sm" variant="outline" onClick={addLeg}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
+      </div>
+      {(form.legs ?? []).map((leg: BetLeg, index: number) => (
+        <div key={index} className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wider text-primary font-mono">Seleção {index + 1}</div>
+            <Button type="button" size="sm" variant="ghost" disabled={(form.legs ?? []).length <= 2} onClick={() => removeLeg(index)} className="text-destructive hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div><Label>Competição</Label><Input value={leg.competition ?? ''} onChange={e=>updateLeg(index, 'competition', e.target.value)} /></div>
+          <div><Label>Jogo</Label><Input value={leg.match ?? ''} onChange={e=>updateLeg(index, 'match', e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Mercado</Label><Input value={leg.market ?? ''} onChange={e=>updateLeg(index, 'market', e.target.value)} /></div>
+            <div><Label>Aposta</Label><Input value={leg.selection ?? ''} onChange={e=>updateLeg(index, 'selection', e.target.value)} /></div>
+          </div>
+          <div><Label>Odd</Label><Input type="number" step="0.01" min="1.01" value={leg.odd ?? ''} onChange={e=>updateLeg(index, 'odd', e.target.value)} /></div>
+        </div>
+      ))}
+      <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 flex items-center justify-between gap-3">
+        <Label>Odd total</Label>
+        <div className="font-mono text-2xl font-bold neon-text">{oddTotal > 0 ? oddTotal.toFixed(2) : '—'}</div>
+      </div>
+    </div>
+  );
+
   const save = async () => {
     setSaving(true);
+    const cleanLegs = normalizedLegs();
+    const summary = form.is_multiple ? {
+      competition: 'Acumulada',
+      match: `Acumulada (${cleanLegs.length} seleções)`,
+      market: 'Acumulada',
+      selection: cleanLegs.map((leg: BetLeg) => `${leg.match}: ${leg.selection}`).join(' + '),
+    } : null;
     const payload: any = {
       bet_date: form.bet_date,
       bet_time: form.bet_time || null,
-      competition: form.competition || null,
-      match: form.match,
-      market: form.market,
-      selection: form.selection,
-      odd: Number(form.odd),
+      competition: form.is_multiple ? summary?.competition : (form.competition || null),
+      match: form.is_multiple ? summary?.match : form.match,
+      market: form.is_multiple ? summary?.market : form.market,
+      selection: form.is_multiple ? summary?.selection : form.selection,
+      odd: form.is_multiple ? oddTotal : Number(form.odd),
       stake: Number(form.stake),
       status: form.status,
       profit_loss: form.profit_loss === '' ? null : Number(form.profit_loss),
       result: form.result || null,
       notes: form.notes || null,
       image_urls: form.image_urls ?? [],
+      is_multiple: !!form.is_multiple,
+      legs: form.is_multiple ? cleanLegs : [],
       updated_by: (await supabase.auth.getUser()).data.user?.id,
     };
     if (admin) {
@@ -107,14 +174,22 @@ export default function EditBetDialog({ bet, onClose, onSaved }: Props) {
             <div><Label>Data</Label><Input type="date" value={form.bet_date} onChange={e=>upd('bet_date', e.target.value)} /></div>
             <div><Label>Hora</Label><Input type="time" value={form.bet_time} onChange={e=>upd('bet_time', e.target.value)} /></div>
           </div>
-          <div><Label>Competição</Label><Input value={form.competition} onChange={e=>upd('competition', e.target.value)} /></div>
-          <div><Label>Jogo</Label><Input value={form.match} onChange={e=>upd('match', e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Mercado</Label><Input value={form.market} onChange={e=>upd('market', e.target.value)} /></div>
-            <div><Label>Aposta</Label><Input value={form.selection} onChange={e=>upd('selection', e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/20 p-1">
+            <Button type="button" variant={!form.is_multiple ? 'default' : 'ghost'} onClick={() => upd('is_multiple', false)} className={!form.is_multiple ? 'bg-gradient-neon text-primary-foreground' : ''}>Aposta simples</Button>
+            <Button type="button" variant={form.is_multiple ? 'default' : 'ghost'} onClick={() => upd('is_multiple', true)} className={form.is_multiple ? 'bg-gradient-neon text-primary-foreground' : ''}>Aposta acumulada</Button>
           </div>
+          {form.is_multiple ? renderLegsEditor() : (
+            <>
+              <div><Label>Competição</Label><Input value={form.competition} onChange={e=>upd('competition', e.target.value)} /></div>
+              <div><Label>Jogo</Label><Input value={form.match} onChange={e=>upd('match', e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Mercado</Label><Input value={form.market} onChange={e=>upd('market', e.target.value)} /></div>
+                <div><Label>Aposta</Label><Input value={form.selection} onChange={e=>upd('selection', e.target.value)} /></div>
+              </div>
+            </>
+          )}
           <div className="grid grid-cols-3 gap-3">
-            <div><Label>Odd</Label><Input type="number" step="0.01" value={form.odd} onChange={e=>upd('odd', e.target.value)} /></div>
+            <div><Label>{form.is_multiple ? 'Odd total' : 'Odd'}</Label><Input readOnly={form.is_multiple} type="number" step="0.01" value={form.is_multiple ? (oddTotal > 0 ? oddTotal.toFixed(2) : '') : form.odd} onChange={e=>upd('odd', e.target.value)} className={form.is_multiple ? 'font-mono neon-text' : ''} /></div>
             <div><Label>Stake (€)</Label><Input type="number" step="0.01" value={form.stake} onChange={e=>upd('stake', e.target.value)} /></div>
             <div><Label>Estado</Label>
               <Select value={form.status} onValueChange={v=>upd('status', v)}>
