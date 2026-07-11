@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
 import EditBetDialog from '@/components/EditBetDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import BetLegsDisplay from '@/components/BetLegsDisplay';
 
 export default function PendingBets() {
   const [bets, setBets] = useState<any[]>([]);
@@ -104,11 +105,18 @@ export default function PendingBets() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-                <div><div className="text-xs text-muted-foreground">Mercado</div><div className="font-medium">{bet.market}</div></div>
-                <div><div className="text-xs text-muted-foreground">Aposta</div><div className="font-medium">{bet.selection}</div></div>
-                <div><div className="text-xs text-muted-foreground">Stake</div><div className="font-medium font-mono">{Number(bet.stake).toFixed(2)}€</div></div>
-              </div>
+              {bet.is_multiple ? (
+                <div className="mb-3 space-y-3">
+                  <BetLegsDisplay bet={bet} />
+                  <div className="text-sm"><div className="text-xs text-muted-foreground">Stake</div><div className="font-medium font-mono">{Number(bet.stake).toFixed(2)}€</div></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 text-sm mb-3">
+                  <div><div className="text-xs text-muted-foreground">Mercado</div><div className="font-medium">{bet.market}</div></div>
+                  <div><div className="text-xs text-muted-foreground">Aposta</div><div className="font-medium">{bet.selection}</div></div>
+                  <div><div className="text-xs text-muted-foreground">Stake</div><div className="font-medium font-mono">{Number(bet.stake).toFixed(2)}€</div></div>
+                </div>
+              )}
 
               {bet.confidence && <div className="mb-3 text-sm">Confiança: {'💀'.repeat(bet.confidence)}</div>}
 
