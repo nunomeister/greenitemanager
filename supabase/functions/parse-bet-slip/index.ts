@@ -5,6 +5,8 @@ const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
 const SYSTEM_SLIP = `You extract sports bet data from BetLabel (Portuguese bookmaker) betslip screenshots.
 Return ONE JSON object with these keys (use null when unknown):
+  is_multiple (boolean, true when the slip is an accumulator/parlay with 2+ selections),
+  legs (array, empty for single bets; for multiples include objects with competition, match, market, selection, odd),
   match (string, e.g. "Benfica vs Porto"),
   competition (string),
   market (string, e.g. "Mais/Menos Golos"),
@@ -16,17 +18,20 @@ Return ONE JSON object with these keys (use null when unknown):
   bet_time (HH:MM or null),
   bet_code (string or null),
   bookmaker (string, default "BetLabel").
+For accumulator/parlay slips, set odd to the total combined odd and populate legs with each individual selection.
 Output ONLY the JSON object, no prose.`;
 
 const SYSTEM_HISTORY = `You extract ALL bets from a BetLabel history HTML page.
 Return a JSON object: { "bets": [ ...bet objects... ] }.
 Each bet object must have:
+  is_multiple (boolean), legs (array, empty for single bets; for multiples include competition, match, market, selection, odd),
   match, competition, market, selection, player, odd (number), stake (number),
   bet_date (YYYY-MM-DD), bet_time (HH:MM or null),
   bet_code, bookmaker (default "BetLabel"),
   status ("pending" | "green" | "red" | "void"),
   profit_loss (number, positive on green, negative on red, 0 otherwise, or null),
   result (string or null, e.g. "1-0").
+For accumulator/parlay bets, set odd to the total combined odd and populate legs with every selection.
 Use null when a field is unknown. Output ONLY the JSON object.`;
 
 Deno.serve(async (req) => {
