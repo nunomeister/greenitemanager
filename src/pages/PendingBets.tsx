@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { SERVICE_META, ServiceCode, BET_STATUS_META, fillTemplate } from '@/lib/services';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { useAuth, canAdmin } from '@/hooks/useAuth';
 import EditBetDialog from '@/components/EditBetDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import BetLegsDisplay from '@/components/BetLegsDisplay';
+import ResultCard from '@/components/ResultCard';
+import { toPng } from 'html-to-image';
 
 export default function PendingBets() {
   const [bets, setBets] = useState<any[]>([]);
