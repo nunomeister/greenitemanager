@@ -14,7 +14,7 @@ interface Bet {
   service?: { code: string; name: string; emoji: string };
 }
 
-function StatCard({ label, value, sub, icon: Icon, tone = 'default' }: any) {
+function StatCard({ label, value, sub, icon: Icon, tone = 'default', trend }: any) {
   const tones: Record<string, string> = {
     default: 'text-foreground',
     green: 'text-success',
@@ -22,14 +22,37 @@ function StatCard({ label, value, sub, icon: Icon, tone = 'default' }: any) {
     neon: 'neon-text',
     warning: 'text-warning',
   };
+  const hasTrend = typeof trend === 'number' && isFinite(trend);
+  const trendUp = hasTrend && trend >= 0;
   return (
-    <div className="stat-card">
-      <div className="flex items-start justify-between mb-2">
+    <div className="stat-card p-5 md:p-6">
+      <div className="flex items-start justify-between mb-3">
         <span className="text-xs uppercase tracking-widest text-muted-foreground font-mono">{label}</span>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </div>
-      <div className={`text-2xl md:text-3xl font-bold font-mono ${tones[tone]}`}>{value}</div>
-      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <div className={`text-2xl md:text-3xl font-bold font-mono ${tones[tone]}`}>{value}</div>
+        {hasTrend && (
+          <span className={`inline-flex items-center gap-0.5 text-xs font-mono font-semibold ${trendUp ? 'text-success' : 'text-destructive'}`}>
+            {trendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {Math.abs(trend).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      {sub && <div className="text-xs text-muted-foreground mt-2">{sub}</div>}
+    </div>
+  );
+}
+
+function HeroStat({ label, value, tone }: { label: string; value: string; tone: 'green' | 'red' | 'neon' }) {
+  const cls =
+    tone === 'green' ? 'text-success drop-shadow-[0_0_18px_hsl(var(--success)/0.55)]' :
+    tone === 'red'   ? 'text-destructive drop-shadow-[0_0_18px_hsl(var(--destructive)/0.55)]' :
+                       'neon-text';
+  return (
+    <div className="glass-card rounded-2xl p-6 md:p-8 shadow-neon flex flex-col justify-between min-h-[140px]">
+      <span className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-muted-foreground font-mono">{label}</span>
+      <div className={`font-mono font-black leading-none tracking-tight text-4xl md:text-6xl mt-4 ${cls}`}>{value}</div>
     </div>
   );
 }
