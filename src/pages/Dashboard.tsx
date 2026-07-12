@@ -135,26 +135,61 @@ export default function Dashboard() {
 
   const serviceChart = serviceArr.map(s => ({ name: `${s.emoji} ${s.name.split("'")[0]}`, lucro: +s.profit.toFixed(2) }));
 
+  // Streak (últimas apostas fechadas cronologicamente)
+  const chronological = sortedByDate.filter(b => b.status === 'green' || b.status === 'red');
+  let streakType: 'green' | 'red' | null = null;
+  let streakCount = 0;
+  for (let i = chronological.length - 1; i >= 0; i--) {
+    const s = chronological[i].status as 'green' | 'red';
+    if (streakType === null) { streakType = s; streakCount = 1; }
+    else if (s === streakType) streakCount++;
+    else break;
+  }
+  const showStreak = streakCount >= 2;
+
+  // Trends: período atual vs anterior (mesma duração)
+  const pctDelta = (curr: number, prev: number) => {
+    if (prev === 0) return curr === 0 ? 0 : (curr > 0 ? 100 : -100);
+    return ((curr - prev) / Math.abs(prev)) * 100;
+  };
+  const prev7Start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+  const prev30Start = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const prevWeekly = closed.filter(b => b.bet_date >= prev7Start && b.bet_date < weekAgo).reduce((s, b) => s + (b.profit_loss ?? 0), 0);
+  const prevMonthly = closed.filter(b => b.bet_date >= prev30Start && b.bet_date < monthAgo).reduce((s, b) => s + (b.profit_loss ?? 0), 0);
+  const weeklyTrend = pctDelta(weeklyProfit, prevWeekly);
+  const monthlyTrend = pctDelta(monthlyProfit, prevMonthly);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1 font-mono uppercase tracking-wider">☣ Estado da infeção</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1 font-mono uppercase tracking-wider">☣ Estado da infeção</p>
+        </div>
+        {showStreak && (
+          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-mono text-sm font-bold uppercase tracking-wider ${
+            streakType === 'green'
+              ? 'bg-success/10 border-success/50 text-success shadow-[0_0_20px_hsl(var(--success)/0.35)]'
+              : 'bg-destructive/10 border-destructive/50 text-destructive shadow-[0_0_20px_hsl(var(--destructive)/0.35)]'
+          }`}>
+            {streakType === 'green' ? '🔥' : '🥶'} {streakCount} {streakType}s seguidos
+          </div>
+        )}
       </div>
 
-      {/* Top KPIs */}
+      {/* HERO — números de destaque */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+        <HeroStat label="Lucro total" value={eur(totalProfit)} tone={totalProfit >= 0 ? 'green' : 'red'} />
+        <HeroStat label="ROI" value={`${roi.toFixed(1)}%`} tone={roi >= 0 ? 'green' : 'red'} />
+        <HeroStat label="Win rate" value={`${hitRate.toFixed(1)}%`} tone="neon" />
+      </div>
+
+      {/* Banca + resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <StatCard label="Lucro total"    value={eur(totalProfit)}  icon={totalProfit>=0?TrendingUp:TrendingDown} tone={totalProfit>=0?'green':'red'} />
-        <StatCard label="ROI"            value={`${roi.toFixed(1)}%`} icon={Percent} tone={roi>=0?'green':'red'} />
-        <StatCard label="Taxa de acerto" value={`${hitRate.toFixed(1)}%`} icon={Target} tone="neon" />
         <StatCard label="Banca atual"    value={`${(bankroll?.current_amount ?? 0).toFixed(2)}€`} sub={`Inicial ${initial.toFixed(2)}€`} icon={Coins} tone="neon" />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Hoje"    value={eur(dailyProfit)}   tone={dailyProfit>=0?'green':'red'} />
-        <StatCard label="7 dias"  value={eur(weeklyProfit)}  tone={weeklyProfit>=0?'green':'red'} />
-        <StatCard label="30 dias" value={eur(monthlyProfit)} tone={monthlyProfit>=0?'green':'red'} />
-        <StatCard label="Exposição" value={`${exposure.toFixed(2)}€`} sub={`${pending.length} pendentes`} tone="warning" />
+        <StatCard label="Hoje"    value={eur(dailyProfit)}   tone={dailyProfit>=0?'green':'red'} icon={dailyProfit>=0?TrendingUp:TrendingDown} />
+        <StatCard label="7 dias"  value={eur(weeklyProfit)}  tone={weeklyProfit>=0?'green':'red'} trend={weeklyTrend} />
+        <StatCard label="30 dias" value={eur(monthlyProfit)} tone={monthlyProfit>=0?'green':'red'} trend={monthlyTrend} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -162,7 +197,7 @@ export default function Dashboard() {
         <StatCard label="Greens"   value={green.length} icon={CheckCircle2} tone="green" />
         <StatCard label="Reds"     value={red.length}   icon={XCircle}      tone="red" />
         <StatCard label="Voids"    value={voidBets.length} icon={AlertCircle} />
-        <StatCard label="Pendentes" value={pending.length} icon={Clock} tone="warning" />
+        <StatCard label="Pendentes" value={pending.length} sub={`Exposição ${exposure.toFixed(2)}€`} icon={Clock} tone="warning" />
       </div>
 
       {/* Charts */}
