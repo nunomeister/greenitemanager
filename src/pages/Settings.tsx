@@ -90,7 +90,7 @@ export default function Settings() {
     if (error) { toast.error(error.message); return; }
     toast.success('Dados reiniciados com sucesso. A recarregar...');
     // Full reload to invalidate all page caches (dashboard, bankroll, results)
-    setTimeout(() => window.location.assign('/dashboard'), 700);
+    setTimeout(() => window.location.assign('/'), 700);
   };
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;

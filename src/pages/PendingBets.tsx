@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { SERVICE_META, ServiceCode, BET_STATUS_META, fillTemplate } from '@/lib/services';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { useAuth, canAdmin } from '@/hooks/useAuth';
 import EditBetDialog from '@/components/EditBetDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import BetLegsDisplay from '@/components/BetLegsDisplay';
+import ResultCard from '@/components/ResultCard';
+import { toPng } from 'html-to-image';
 
 export default function PendingBets() {
   const [bets, setBets] = useState<any[]>([]);
@@ -26,17 +28,25 @@ export default function PendingBets() {
   const admin = canAdmin(role);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
+  const [publishing, setPublishing] = useState<null | {
+    bet: any; status: 'green' | 'red' | 'void' | 'cashout'; profit: number;
+  }>(null);
+  const [closingPhrase, setClosingPhrase] = useState<string>('');
+  const resultCardRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     setLoading(true);
-    const [b, t] = await Promise.all([
+    const [b, t, s] = await Promise.all([
       supabase.from('bets').select('*, service:services(code,name,emoji), bookmaker:bookmakers(name)').eq('status', 'pending').order('bet_date', { ascending: false }),
       supabase.from('telegram_templates').select('service_code, template_text'),
+      supabase.from('settings').select('value').eq('key', 'closing_phrase').maybeSingle(),
     ]);
     setBets(b.data ?? []);
     const tpl: Record<string,string> = {};
     (t.data ?? []).forEach((r: any) => { tpl[r.service_code] = r.template_text; });
     setTemplates(tpl);
+    const cp = (s.data as any)?.value;
+    setClosingPhrase(typeof cp === 'string' ? cp : (cp?.text || ''));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -48,15 +58,49 @@ export default function PendingBets() {
     setCloseResult(''); setCloseReason('');
   };
 
+  const publishToTelegram = async (bet: any, status: 'green' | 'red' | 'void' | 'cashout', profit: number) => {
+    if (status !== 'green' && status !== 'red') return;
+    setPublishing({ bet, status, profit });
+    // wait for offscreen node to mount + fonts render
+    await new Promise((r) => setTimeout(r, 350));
+    const node = resultCardRef.current;
+    if (!node) { setPublishing(null); return; }
+    const toastId = toast.loading('A publicar no Telegram...');
+    try {
+      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true, backgroundColor: '#000000' });
+      const caption =
+        status === 'green'
+          ? `✅ <b>GREEN</b> · ${bet.match || 'Aposta'}\nLucro: <b>+${profit.toFixed(2)}€</b> @ ${Number(bet.odd || 0).toFixed(2)}`
+          : `❌ <b>RED</b> · ${bet.match || 'Aposta'}\nPrejuízo: <b>${profit.toFixed(2)}€</b> @ ${Number(bet.odd || 0).toFixed(2)}`;
+      const { error } = await supabase.functions.invoke('send-telegram-result', {
+        body: { imageBase64: dataUrl, caption },
+      });
+      if (error) throw error;
+      toast.success('Publicado no canal ✅', { id: toastId });
+    } catch (e: any) {
+      console.error('Telegram publish failed', e);
+      toast.error('Falha ao publicar no Telegram', { id: toastId, description: e?.message });
+    } finally {
+      setPublishing(null);
+    }
+  };
+
   const confirmClose = async () => {
     if (!closing) return;
-    const update: any = { status: closeStatus, profit_loss: Number(closeProfit), result: closeResult || null };
+    const profit = Number(closeProfit);
+    const update: any = { status: closeStatus, profit_loss: profit, result: closeResult || null };
     if (closeStatus === 'red') update.red_reason = closeReason || null;
     const { error } = await supabase.from('bets').update(update).eq('id', closing.id);
     if (error) { toast.error(error.message); return; }
     toast.success(`Aposta marcada como ${closeStatus}`);
+    const closedBet = closing;
+    const closedStatus = closeStatus;
     setClosing(null);
     load();
+    // Publish asynchronously — não bloqueia UI e não faz rebentar o fecho
+    if (admin && (closedStatus === 'green' || closedStatus === 'red')) {
+      publishToTelegram(closedBet, closedStatus, profit).catch((e) => console.error(e));
+    }
   };
 
   const duplicate = async (bet: any) => {
@@ -168,6 +212,19 @@ export default function PendingBets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Offscreen ResultCard for Telegram image capture */}
+      {publishing && (
+        <div style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none', opacity: 1 }} aria-hidden>
+          <ResultCard
+            ref={resultCardRef}
+            bet={publishing.bet}
+            status={publishing.status}
+            profit={publishing.profit}
+            closingPhrase={closingPhrase}
+          />
+        </div>
+      )}
     </div>
   );
 }
