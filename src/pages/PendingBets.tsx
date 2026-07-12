@@ -212,6 +212,19 @@ export default function PendingBets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Offscreen ResultCard for Telegram image capture */}
+      {publishing && (
+        <div style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none', opacity: 1 }} aria-hidden>
+          <ResultCard
+            ref={resultCardRef}
+            bet={publishing.bet}
+            status={publishing.status}
+            profit={publishing.profit}
+            closingPhrase={closingPhrase}
+          />
+        </div>
+      )}
     </div>
   );
 }
