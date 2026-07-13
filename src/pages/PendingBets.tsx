@@ -66,7 +66,11 @@ export default function PendingBets() {
         if (error) toast.error('Falha ao publicar no Telegram', { id: 'tg-post' });
         else toast.success('Publicado no canal ✅', { id: 'tg-post' });
       } catch (e: any) {
-        toast.error('Falha ao gerar/publicar imagem do resultado', { id: 'tg-post' });
+  console.error('Erro Telegram:', e);
+  toast.error(
+    `Falha ao gerar/publicar: ${e?.message ?? String(e)}`,
+    { id: 'tg-post', duration: 10000 }
+  );
       } finally {
         setPrintBet(null);
       }
