@@ -22,37 +22,38 @@ function StatCard({ label, value, sub, icon: Icon, tone = 'default', trend }: an
     neon: 'neon-text',
     warning: 'text-warning',
   };
-  const hasTrend = typeof trend === 'number' && isFinite(trend);
-  const trendUp = hasTrend && trend >= 0;
   return (
-    <div className="stat-card p-5 md:p-6">
-      <div className="flex items-start justify-between mb-3">
+    <div className="stat-card">
+      <div className="flex items-start justify-between mb-2">
         <span className="text-xs uppercase tracking-widest text-muted-foreground font-mono">{label}</span>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </div>
-      <div className="flex items-baseline gap-2 flex-wrap">
+      <div className="flex items-end gap-2 flex-wrap">
         <div className={`text-2xl md:text-3xl font-bold font-mono ${tones[tone]}`}>{value}</div>
-        {hasTrend && (
-          <span className={`inline-flex items-center gap-0.5 text-xs font-mono font-semibold ${trendUp ? 'text-success' : 'text-destructive'}`}>
-            {trendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {Math.abs(trend).toFixed(0)}%
+        {trend !== undefined && trend !== null && Number.isFinite(trend) && (
+          <span className={`flex items-center gap-0.5 text-xs font-mono mb-1 ${trend >= 0 ? 'text-success' : 'text-destructive'}`}>
+            {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
           </span>
         )}
       </div>
-      {sub && <div className="text-xs text-muted-foreground mt-2">{sub}</div>}
+      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
 }
 
-function HeroStat({ label, value, tone }: { label: string; value: string; tone: 'green' | 'red' | 'neon' }) {
-  const cls =
-    tone === 'green' ? 'text-success drop-shadow-[0_0_18px_hsl(var(--success)/0.55)]' :
-    tone === 'red'   ? 'text-destructive drop-shadow-[0_0_18px_hsl(var(--destructive)/0.55)]' :
-                       'neon-text';
+function HeroStat({ label, value, positive }: { label: string; value: string; positive: boolean | null }) {
   return (
-    <div className="glass-card rounded-2xl p-6 md:p-8 shadow-neon flex flex-col justify-between min-h-[140px]">
-      <span className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-muted-foreground font-mono">{label}</span>
-      <div className={`font-mono font-black leading-none tracking-tight text-4xl md:text-6xl mt-4 ${cls}`}>{value}</div>
+    <div className="flex-1 min-w-[140px]">
+      <div className="text-xs uppercase tracking-widest text-muted-foreground font-mono mb-1">{label}</div>
+      <div
+        className={`text-4xl md:text-6xl font-extrabold font-mono tracking-tight ${
+          positive === null ? 'text-foreground' : positive ? 'neon-text' : 'text-destructive'
+        }`}
+        style={positive === false ? { textShadow: '0 0 24px hsl(var(--destructive) / 0.5), 0 0 4px hsl(var(--destructive) / 0.6)' } : undefined}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -135,61 +136,61 @@ export default function Dashboard() {
 
   const serviceChart = serviceArr.map(s => ({ name: `${s.emoji} ${s.name.split("'")[0]}`, lucro: +s.profit.toFixed(2) }));
 
-  // Streak (últimas apostas fechadas cronologicamente)
-  const chronological = sortedByDate.filter(b => b.status === 'green' || b.status === 'red');
-  let streakType: 'green' | 'red' | null = null;
+  // streak: greens/reds seguidos, a contar da aposta decidida mais recente para trás
+  const decidedSorted = [...closed]
+    .filter(b => b.status === 'green' || b.status === 'red')
+    .sort((a, b) => (b.closed_at ?? b.bet_date) > (a.closed_at ?? a.bet_date) ? 1 : -1);
   let streakCount = 0;
-  for (let i = chronological.length - 1; i >= 0; i--) {
-    const s = chronological[i].status as 'green' | 'red';
-    if (streakType === null) { streakType = s; streakCount = 1; }
-    else if (s === streakType) streakCount++;
+  let streakType: 'green' | 'red' | null = null;
+  for (const b of decidedSorted) {
+    if (streakType === null) { streakType = b.status as 'green' | 'red'; streakCount = 1; }
+    else if (b.status === streakType) streakCount += 1;
     else break;
   }
-  const showStreak = streakCount >= 2;
 
-  // Trends: período atual vs anterior (mesma duração)
-  const pctDelta = (curr: number, prev: number) => {
-    if (prev === 0) return curr === 0 ? 0 : (curr > 0 ? 100 : -100);
-    return ((curr - prev) / Math.abs(prev)) * 100;
-  };
-  const prev7Start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
-  const prev30Start = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
-  const prevWeekly = closed.filter(b => b.bet_date >= prev7Start && b.bet_date < weekAgo).reduce((s, b) => s + (b.profit_loss ?? 0), 0);
-  const prevMonthly = closed.filter(b => b.bet_date >= prev30Start && b.bet_date < monthAgo).reduce((s, b) => s + (b.profit_loss ?? 0), 0);
-  const weeklyTrend = pctDelta(weeklyProfit, prevWeekly);
-  const monthlyTrend = pctDelta(monthlyProfit, prevMonthly);
+  // tendência do período: compara últimos 7 dias com os 7 dias anteriores
+  const prevWeekStart = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+  const prevWeekProfit = closed.filter(b => b.bet_date >= prevWeekStart && b.bet_date < weekAgo).reduce((s, b) => s + (b.profit_loss ?? 0), 0);
+  const weeklyTrend = prevWeekProfit !== 0 ? ((weeklyProfit - prevWeekProfit) / Math.abs(prevWeekProfit)) * 100 : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1 font-mono uppercase tracking-wider">☣ Estado da infeção</p>
-        </div>
-        {showStreak && (
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-mono text-sm font-bold uppercase tracking-wider ${
-            streakType === 'green'
-              ? 'bg-success/10 border-success/50 text-success shadow-[0_0_20px_hsl(var(--success)/0.35)]'
-              : 'bg-destructive/10 border-destructive/50 text-destructive shadow-[0_0_20px_hsl(var(--destructive)/0.35)]'
-          }`}>
-            {streakType === 'green' ? '🔥' : '🥶'} {streakCount} {streakType}s seguidos
+      <div>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground text-sm mt-1 font-mono uppercase tracking-wider">☣ Estado da infeção</p>
+      </div>
+
+      {/* Hero de destaque */}
+      <div className="glass-card rounded-2xl p-6 md:p-8 border-primary/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-wrap gap-8 md:gap-12">
+            <HeroStat label="Lucro total" value={eur(totalProfit)} positive={closed.length ? totalProfit >= 0 : null} />
+            <HeroStat label="ROI" value={`${roi.toFixed(1)}%`} positive={closed.length ? roi >= 0 : null} />
+            <HeroStat label="Taxa de acerto" value={`${hitRate.toFixed(1)}%`} positive={null} />
           </div>
-        )}
+          {streakCount >= 3 && streakType && (
+            <div className={`self-start md:self-center px-4 py-2 rounded-full font-mono text-sm font-bold flex items-center gap-2 ${
+              streakType === 'green' ? 'bg-success/15 text-success border border-success/30' : 'bg-destructive/15 text-destructive border border-destructive/30'
+            }`}>
+              {streakType === 'green' ? '🔥' : '🥶'} {streakCount} {streakType === 'green' ? 'greens' : 'reds'} seguidos
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* HERO — números de destaque */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-        <HeroStat label="Lucro total" value={eur(totalProfit)} tone={totalProfit >= 0 ? 'green' : 'red'} />
-        <HeroStat label="ROI" value={`${roi.toFixed(1)}%`} tone={roi >= 0 ? 'green' : 'red'} />
-        <HeroStat label="Win rate" value={`${hitRate.toFixed(1)}%`} tone="neon" />
-      </div>
-
-      {/* Banca + resumo */}
+      {/* Top KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <StatCard label="Lucro total"    value={eur(totalProfit)}  icon={totalProfit>=0?TrendingUp:TrendingDown} tone={totalProfit>=0?'green':'red'} />
+        <StatCard label="ROI"            value={`${roi.toFixed(1)}%`} icon={Percent} tone={roi>=0?'green':'red'} />
+        <StatCard label="Taxa de acerto" value={`${hitRate.toFixed(1)}%`} icon={Target} tone="neon" />
         <StatCard label="Banca atual"    value={`${(bankroll?.current_amount ?? 0).toFixed(2)}€`} sub={`Inicial ${initial.toFixed(2)}€`} icon={Coins} tone="neon" />
-        <StatCard label="Hoje"    value={eur(dailyProfit)}   tone={dailyProfit>=0?'green':'red'} icon={dailyProfit>=0?TrendingUp:TrendingDown} />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Hoje"    value={eur(dailyProfit)}   tone={dailyProfit>=0?'green':'red'} />
         <StatCard label="7 dias"  value={eur(weeklyProfit)}  tone={weeklyProfit>=0?'green':'red'} trend={weeklyTrend} />
-        <StatCard label="30 dias" value={eur(monthlyProfit)} tone={monthlyProfit>=0?'green':'red'} trend={monthlyTrend} />
+        <StatCard label="30 dias" value={eur(monthlyProfit)} tone={monthlyProfit>=0?'green':'red'} />
+        <StatCard label="Exposição" value={`${exposure.toFixed(2)}€`} sub={`${pending.length} pendentes`} tone="warning" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -197,7 +198,7 @@ export default function Dashboard() {
         <StatCard label="Greens"   value={green.length} icon={CheckCircle2} tone="green" />
         <StatCard label="Reds"     value={red.length}   icon={XCircle}      tone="red" />
         <StatCard label="Voids"    value={voidBets.length} icon={AlertCircle} />
-        <StatCard label="Pendentes" value={pending.length} sub={`Exposição ${exposure.toFixed(2)}€`} icon={Clock} tone="warning" />
+        <StatCard label="Pendentes" value={pending.length} icon={Clock} tone="warning" />
       </div>
 
       {/* Charts */}

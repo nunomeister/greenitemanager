@@ -1,133 +1,78 @@
 import { forwardRef } from 'react';
-import { SERVICE_META, ServiceCode, getBetOddTotal } from '@/lib/services';
+import { SERVICE_META, ServiceCode } from '@/lib/services';
 
-interface Props {
+interface ResultCardProps {
   bet: any;
-  status: 'green' | 'red' | 'void' | 'cashout';
-  profit: number;
   closingPhrase?: string;
 }
 
-const STATUS_META: Record<string, { label: string; color: string; glow: string; emoji: string }> = {
-  green:   { label: 'GREEN',   color: '#22ff88', glow: '0 0 40px rgba(34,255,136,0.6)', emoji: '✅' },
-  red:     { label: 'RED',     color: '#ff2b5c', glow: '0 0 40px rgba(255,43,92,0.6)',  emoji: '❌' },
-  void:    { label: 'VOID',    color: '#9ca3af', glow: '0 0 40px rgba(156,163,175,0.4)', emoji: '⚪' },
-  cashout: { label: 'CASHOUT', color: '#f5c542', glow: '0 0 40px rgba(245,197,66,0.5)', emoji: '💵' },
-};
+const eur = (n: number) => `${n >= 0 ? '+' : ''}${Number(n).toFixed(2)}€`;
 
-const ResultCard = forwardRef<HTMLDivElement, Props>(({ bet, status, profit, closingPhrase }, ref) => {
-  const meta = STATUS_META[status];
-  const service = SERVICE_META[bet?.service?.code as ServiceCode];
-  const oddTotal = getBetOddTotal(bet);
-  const isMultiple = !!bet?.is_multiple && Array.isArray(bet?.legs) && bet.legs.length > 0;
-  const profitStr = `${profit >= 0 ? '+' : ''}${Number(profit).toFixed(2)}€`;
+// Card usado para gerar o print automático enviado para o Telegram.
+// Mantido fora do fluxo normal de layout (ver uso em PendingBets.tsx).
+const ResultCard = forwardRef<HTMLDivElement, ResultCardProps>(({ bet, closingPhrase }, ref) => {
+  const m = SERVICE_META[bet.service?.code as ServiceCode];
+  const isGreen = bet.status === 'green';
+  const isRed = bet.status === 'red';
+  const statusLabel = bet.status === 'green' ? 'GREEN ✅' : bet.status === 'red' ? 'RED ❌' : bet.status === 'void' ? 'VOID ⚪' : 'CASHOUT 💵';
+  const statusColor = isGreen ? '#39ff14' : isRed ? '#ff3b3b' : '#b8b8b8';
 
   return (
     <div
       ref={ref}
       style={{
-        width: 1080,
-        padding: 56,
-        background: 'radial-gradient(circle at 20% 0%, #0a1a10 0%, #050505 60%, #000 100%)',
-        border: `3px solid ${meta.color}`,
-        borderRadius: 28,
-        boxShadow: meta.glow,
-        fontFamily: "'JetBrains Mono', 'Space Grotesk', ui-monospace, monospace",
-        color: '#fff',
-        position: 'relative',
-        overflow: 'hidden',
+        width: 600,
+        padding: 32,
+        background: 'linear-gradient(160deg, #0a0e0a 0%, #0f1a10 100%)',
+        border: `2px solid ${statusColor}55`,
+        borderRadius: 20,
+        fontFamily: "'JetBrains Mono', monospace",
+        color: '#f2f2f2',
+        boxShadow: `0 0 40px ${statusColor}33`,
       }}
     >
-      {/* header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <div style={{ fontSize: 22, letterSpacing: 6, color: '#22ff88', fontWeight: 700, textTransform: 'uppercase' }}>
-          ☣ Greenite Manager
-        </div>
-        {service && (
-          <div style={{
-            padding: '10px 20px', border: `2px solid ${meta.color}`, borderRadius: 999,
-            fontSize: 20, fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.03)',
-          }}>
-            {service.emoji} {service.name}
-          </div>
-        )}
-      </div>
-
-      {/* status big */}
-      <div style={{ textAlign: 'center', margin: '20px 0 32px' }}>
-        <div style={{ fontSize: 24, letterSpacing: 8, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Resultado</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{
-          fontSize: 140, lineHeight: 1, fontWeight: 900, color: meta.color,
-          textShadow: `0 0 30px ${meta.color}`, letterSpacing: 4,
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          fontSize: 13, fontWeight: 700, letterSpacing: 1,
+          padding: '4px 12px', borderRadius: 999, border: '1px solid #39ff1455', color: '#39ff14',
         }}>
-          {meta.emoji} {meta.label}
+          {m?.emoji ?? '☣️'} {bet.service?.name ?? 'Greenite'}
+        </div>
+        <div style={{ fontSize: 12, color: '#888' }}>@greenitehub</div>
+      </div>
+
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{bet.match}</div>
+      <div style={{ fontSize: 13, color: '#999', marginBottom: 20 }}>
+        {bet.competition} {bet.market ? `• ${bet.market}` : ''} {bet.selection ? `• ${bet.selection}` : ''}
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+        <div style={{ flex: 1, background: '#ffffff08', borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Odd</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#39ff14' }}>{Number(bet.odd).toFixed(2)}</div>
+        </div>
+        <div style={{ flex: 1, background: '#ffffff08', borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Stake</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{Number(bet.stake).toFixed(2)}€</div>
         </div>
       </div>
 
-      {/* match / event */}
       <div style={{
-        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 16, padding: 28, marginBottom: 24,
+        textAlign: 'center', padding: '20px 0', borderRadius: 14,
+        background: `${statusColor}18`, border: `1px solid ${statusColor}55`, marginBottom: 16,
       }}>
-        <div style={{ fontSize: 18, color: '#888', textTransform: 'uppercase', letterSpacing: 3, marginBottom: 10 }}>
-          {bet?.competition || '—'}
-        </div>
-        <div style={{ fontSize: 40, fontWeight: 800, marginBottom: 20, lineHeight: 1.15 }}>
-          {isMultiple ? `Acumulada · ${bet.legs.length} seleções` : (bet?.match || '—')}
-        </div>
-
-        {isMultiple ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {bet.legs.slice(0, 6).map((leg: any, i: number) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 22, color: '#ddd' }}>
-                <span style={{ opacity: 0.9 }}>{i + 1}. {leg.match || 'Jogo'} — <b style={{ color: '#fff' }}>{leg.selection || '—'}</b></span>
-                <span style={{ color: '#22ff88', fontWeight: 700 }}>@ {Number(leg.odd || 0).toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 40, fontSize: 24 }}>
-            <div>
-              <div style={{ color: '#888', fontSize: 16, textTransform: 'uppercase', letterSpacing: 2 }}>Mercado</div>
-              <div style={{ fontWeight: 700 }}>{bet?.market || '—'}</div>
-            </div>
-            <div>
-              <div style={{ color: '#888', fontSize: 16, textTransform: 'uppercase', letterSpacing: 2 }}>Seleção</div>
-              <div style={{ fontWeight: 700 }}>{bet?.selection || '—'}</div>
-            </div>
-          </div>
-        )}
+        <div style={{ fontSize: 34, fontWeight: 900, color: statusColor, letterSpacing: 1 }}>{statusLabel}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: statusColor, marginTop: 4 }}>{eur(Number(bet.profit_loss ?? 0))}</div>
       </div>
 
-      {/* stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 32 }}>
-        <div style={{ background: 'rgba(34,255,136,0.06)', border: '1px solid rgba(34,255,136,0.3)', borderRadius: 14, padding: 22 }}>
-          <div style={{ color: '#888', fontSize: 16, textTransform: 'uppercase', letterSpacing: 2 }}>Odd</div>
-          <div style={{ fontSize: 44, fontWeight: 900, color: '#22ff88', textShadow: '0 0 20px rgba(34,255,136,0.5)' }}>
-            {Number(oddTotal || bet?.odd || 0).toFixed(2)}
-          </div>
-        </div>
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 22 }}>
-          <div style={{ color: '#888', fontSize: 16, textTransform: 'uppercase', letterSpacing: 2 }}>Stake</div>
-          <div style={{ fontSize: 44, fontWeight: 900 }}>{Number(bet?.stake || 0).toFixed(2)}€</div>
-        </div>
-        <div style={{
-          background: `${meta.color}12`, border: `1px solid ${meta.color}55`, borderRadius: 14, padding: 22,
-        }}>
-          <div style={{ color: '#888', fontSize: 16, textTransform: 'uppercase', letterSpacing: 2 }}>Lucro</div>
-          <div style={{ fontSize: 44, fontWeight: 900, color: meta.color, textShadow: `0 0 20px ${meta.color}` }}>
-            {profitStr}
-          </div>
-        </div>
-      </div>
-
-      {/* footer */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, textAlign: 'center', color: '#888', fontSize: 20, letterSpacing: 2 }}>
-        {closingPhrase || '☣ INFECT THE ODDS · GREENITE'}
-      </div>
+      {closingPhrase && (
+        <div style={{ textAlign: 'center', fontSize: 12, color: '#777', fontStyle: 'italic' }}>{closingPhrase}</div>
+      )}
     </div>
   );
 });
 
 ResultCard.displayName = 'ResultCard';
+
 export default ResultCard;
