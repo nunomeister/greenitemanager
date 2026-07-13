@@ -60,11 +60,26 @@ const dataUrl = await toPng(resultCardNode, { pixelRatio: 2 });
         const imageBase64 = dataUrl.split(',')[1];
         const caption = `${printBet.match ?? ''}\n${printBet.status === 'green' ? '✅ GREEN' : '❌ RED'}`;
         toast.loading('A publicar no Telegram...', { id: 'tg-post' });
-        const { error } = await supabase.functions.invoke('send-telegram-result', {
-          body: { imageBase64, caption, status: printBet.status },
-        });
-        if (error) toast.error('Falha ao publicar no Telegram', { id: 'tg-post' });
-        else toast.success('Publicado no canal ✅', { id: 'tg-post' });
+        const { data, error } = await supabase.functions.invoke('send-telegram-result', {
+  body: { imageBase64, caption, status: printBet.status },
+});
+
+console.log('Resposta Telegram:', { data, error });
+
+if (error) {
+  throw new Error(error.message || 'Erro ao chamar a função do Telegram');
+}
+
+if (!data?.ok || !data?.photo) {
+  throw new Error(
+    data?.error ||
+    data?.detail?.description ||
+    JSON.stringify(data) ||
+    'O Telegram não confirmou o envio'
+  );
+}
+
+toast.success('Publicado no canal ✅', { id: 'tg-post' });
       } catch (e: any) {
   console.error('Erro Telegram:', e);
   toast.error(
