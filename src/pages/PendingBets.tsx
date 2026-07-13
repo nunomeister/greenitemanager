@@ -54,15 +54,8 @@ export default function PendingBets() {
     if (!printBet) return;
     (async () => {
       try {
-        let attempts = 0;
-
-while (!resultCardRef.current && attempts < 20) {
-  await new Promise(resolve => setTimeout(resolve, 100));
-  attempts++;
-}
-
-if (!resultCardRef.current) {
-  throw new Error('ResultCard não montado após 2 segundos');
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        if (!resultCardRef.current) throw new Error('ResultCard não montado');
         const dataUrl = await toPng(resultCardRef.current, { pixelRatio: 2 });
         const imageBase64 = dataUrl.split(',')[1];
         const caption = `${printBet.match ?? ''}\n${printBet.status === 'green' ? '✅ GREEN' : '❌ RED'}`;
