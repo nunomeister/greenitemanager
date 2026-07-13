@@ -30,7 +30,7 @@ export default function PendingBets() {
   const [deleting, setDeleting] = useState<any | null>(null);
   const [closingPhrase, setClosingPhrase] = useState('');
   const [printBet, setPrintBet] = useState<any | null>(null);
-  const resultCardRef = useRef<HTMLDivElement>(null);
+  const [resultCardNode, setResultCardNode] = useState<HTMLDivElement | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -54,9 +54,9 @@ export default function PendingBets() {
     if (!printBet) return;
     (async () => {
       try {
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        if (!resultCardRef.current) throw new Error('ResultCard não montado');
-        const dataUrl = await toPng(resultCardRef.current, { pixelRatio: 2 });
+       if (!resultCardNode) return;
+await new Promise(resolve => requestAnimationFrame(resolve));
+const dataUrl = await toPng(resultCardNode, { pixelRatio: 2 });
         const imageBase64 = dataUrl.split(',')[1];
         const caption = `${printBet.match ?? ''}\n${printBet.status === 'green' ? '✅ GREEN' : '❌ RED'}`;
         toast.loading('A publicar no Telegram...', { id: 'tg-post' });
@@ -75,7 +75,7 @@ export default function PendingBets() {
         setPrintBet(null);
       }
     })();
-  }, [printBet]);
+  }, [printBet, resultCardNode]);
 
   const openClose = (bet: any, status: 'green'|'red'|'void'|'cashout') => {
     setClosing(bet);
@@ -212,7 +212,7 @@ export default function PendingBets() {
       {/* Card escondido, usado apenas para gerar o print enviado ao Telegram */}
       {printBet && (
         <div style={{ position: 'fixed', top: 0, left: -9999, pointerEvents: 'none' }}>
-          <ResultCard ref={resultCardRef} bet={printBet} closingPhrase={closingPhrase} />
+          <ResultCard ref={setResultCardNode} bet={printBet} closingPhrase={closingPhrase} />
         </div>
       )}
     </div>
