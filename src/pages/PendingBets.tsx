@@ -232,12 +232,12 @@ export default function PendingBets() {
         </DialogContent>
       </Dialog>
 
-      {/* Card escondido, usado apenas para gerar o print enviado ao Telegram */}
-      {printBet && (
-        <div style={{ position: 'fixed', top: 0, left: -9999, pointerEvents: 'none' }}>
-          <ResultCard ref={resultCardRef} bet={printBet} closingPhrase={closingPhrase} />
-        </div>
-      )}
+      {/* Card escondido, sempre montado, usado apenas para gerar o print enviado ao Telegram.
+          Fica sempre presente no DOM (mesmo sem printBet) para eliminar a corrida entre
+          "o React montar o elemento" e "nós tentarmos capturá-lo". */}
+      <div style={{ position: 'fixed', top: 0, left: -9999, pointerEvents: 'none' }} aria-hidden>
+        <ResultCard ref={resultCardRef} bet={printBet ?? {}} closingPhrase={closingPhrase} />
+      </div>
     </div>
   );
 }
