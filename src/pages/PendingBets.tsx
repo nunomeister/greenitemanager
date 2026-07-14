@@ -34,6 +34,10 @@ export default function PendingBets() {
   // <ResultCard> monta, sem depender de um segundo ciclo de render do React.
   const resultCardRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    console.log('[DIAG] Mount check — resultCardRef.current logo no arranque:', resultCardRef.current);
+  }, []);
+
   const load = async () => {
     setLoading(true);
     const [b, t, s] = await Promise.all([
@@ -58,7 +62,9 @@ export default function PendingBets() {
     let cancelled = false;
     (async () => {
       try {
+        console.log('[DIAG] printBet mudou. resultCardRef.current ANTES do wait:', resultCardRef.current);
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        console.log('[DIAG] resultCardRef.current DEPOIS do wait:', resultCardRef.current);
         if (cancelled) return;
         if (!resultCardRef.current) {
           throw new Error('ResultCard não ficou disponível a tempo');
