@@ -34,10 +34,6 @@ export default function PendingBets() {
   // <ResultCard> monta, sem depender de um segundo ciclo de render do React.
   const resultCardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    console.log('[DIAG] Mount check — resultCardRef.current logo no arranque:', resultCardRef.current);
-  }, []);
-
   const load = async () => {
     setLoading(true);
     const [b, t, s] = await Promise.all([
@@ -62,9 +58,7 @@ export default function PendingBets() {
     let cancelled = false;
     (async () => {
       try {
-        console.log('[DIAG] printBet mudou. resultCardRef.current ANTES do wait:', resultCardRef.current);
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        console.log('[DIAG] resultCardRef.current DEPOIS do wait:', resultCardRef.current);
         if (cancelled) return;
         if (!resultCardRef.current) {
           throw new Error('ResultCard não ficou disponível a tempo');
@@ -144,9 +138,9 @@ export default function PendingBets() {
     toast.success('Texto Telegram copiado');
   };
 
-  if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
-
   return (
+    <>
+      {loading ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Apostas pendentes</h1>
@@ -237,13 +231,16 @@ export default function PendingBets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+      )}
 
-      {/* Card escondido, sempre montado, usado apenas para gerar o print enviado ao Telegram.
-          Fica sempre presente no DOM (mesmo sem printBet) para eliminar a corrida entre
-          "o React montar o elemento" e "nós tentarmos capturá-lo". */}
+      {/* Card escondido, sempre montado (mesmo durante o "loading"), usado apenas para
+          gerar o print enviado ao Telegram. Fica FORA do bloco condicional do loading
+          de propósito: se o loading desmontasse este elemento, o ref ficava sempre null
+          bem no momento em que fechamos uma aposta (que dispara um reload). */}
       <div style={{ position: 'fixed', top: 0, left: -9999, pointerEvents: 'none' }} aria-hidden>
         <ResultCard ref={resultCardRef} bet={printBet ?? {}} closingPhrase={closingPhrase} />
       </div>
-    </div>
+    </>
   );
 }
