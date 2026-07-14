@@ -30,7 +30,9 @@ export default function PendingBets() {
   const [deleting, setDeleting] = useState<any | null>(null);
   const [closingPhrase, setClosingPhrase] = useState('');
   const [printBet, setPrintBet] = useState<any | null>(null);
-  const [resultCardNode, setResultCardNode] = useState<HTMLDivElement | null>(null);
+  // useRef em vez de useState: fica disponível de forma síncrona assim que o
+  // <ResultCard> monta, sem depender de um segundo ciclo de render do React.
+  const resultCardRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -49,48 +51,54 @@ export default function PendingBets() {
   useEffect(() => { load(); }, []);
 
   // Depois de "printBet" ser definido, o ResultCard escondido já está montado no DOM
-  // com os dados certos — captura a imagem e envia para o Telegram.
+  // (o React garante isto de forma síncrona antes deste efeito correr) — esperamos
+  // 2 frames para garantir que o browser já pintou, e só depois capturamos a imagem.
   useEffect(() => {
     if (!printBet) return;
+    let cancelled = false;
     (async () => {
       try {
-       if (!resultCardNode) return;
-await new Promise(resolve => requestAnimationFrame(resolve));
-const dataUrl = await toPng(resultCardNode, { pixelRatio: 2 });
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        if (cancelled) return;
+        if (!resultCardRef.current) {
+          throw new Error('ResultCard não ficou disponível a tempo');
+        }
+        const dataUrl = await toPng(resultCardRef.current, { pixelRatio: 2 });
         const imageBase64 = dataUrl.split(',')[1];
         const caption = `${printBet.match ?? ''}\n${printBet.status === 'green' ? '✅ GREEN' : '❌ RED'}`;
         toast.loading('A publicar no Telegram...', { id: 'tg-post' });
+
         const { data, error } = await supabase.functions.invoke('send-telegram-result', {
-  body: { imageBase64, caption, status: printBet.status },
-});
+          body: { imageBase64, caption, status: printBet.status },
+        });
 
-console.log('Resposta Telegram:', { data, error });
+        console.log('Resposta Telegram:', { data, error });
 
-if (error) {
-  throw new Error(error.message || 'Erro ao chamar a função do Telegram');
-}
+        if (error) {
+          throw new Error(error.message || 'Erro ao chamar a função do Telegram');
+        }
+        if (!data?.ok || !data?.photo) {
+          throw new Error(
+            data?.error ||
+            data?.detail?.description ||
+            JSON.stringify(data) ||
+            'O Telegram não confirmou o envio'
+          );
+        }
 
-if (!data?.ok || !data?.photo) {
-  throw new Error(
-    data?.error ||
-    data?.detail?.description ||
-    JSON.stringify(data) ||
-    'O Telegram não confirmou o envio'
-  );
-}
-
-toast.success('Publicado no canal ✅', { id: 'tg-post' });
+        toast.success('Publicado no canal ✅', { id: 'tg-post' });
       } catch (e: any) {
-  console.error('Erro Telegram:', e);
-  toast.error(
-    `Falha ao gerar/publicar: ${e?.message ?? String(e)}`,
-    { id: 'tg-post', duration: 10000 }
-  );
+        console.error('Erro Telegram:', e);
+        toast.error(
+          `Falha ao gerar/publicar: ${e?.message ?? String(e)}`,
+          { id: 'tg-post', duration: 10000 }
+        );
       } finally {
-        setPrintBet(null);
+        if (!cancelled) setPrintBet(null);
       }
     })();
-  }, [printBet, resultCardNode]);
+    return () => { cancelled = true; };
+  }, [printBet]);
 
   const openClose = (bet: any, status: 'green'|'red'|'void'|'cashout') => {
     setClosing(bet);
@@ -227,7 +235,7 @@ toast.success('Publicado no canal ✅', { id: 'tg-post' });
       {/* Card escondido, usado apenas para gerar o print enviado ao Telegram */}
       {printBet && (
         <div style={{ position: 'fixed', top: 0, left: -9999, pointerEvents: 'none' }}>
-          <ResultCard ref={setResultCardNode} bet={printBet} closingPhrase={closingPhrase} />
+          <ResultCard ref={resultCardRef} bet={printBet} closingPhrase={closingPhrase} />
         </div>
       )}
     </div>
