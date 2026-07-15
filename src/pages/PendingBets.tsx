@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Check, X, Ban, RotateCcw, Edit2, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { toPng } from 'html-to-image';
+import html2canvas from 'html2canvas';
 import { useAuth, canAdmin } from '@/hooks/useAuth';
 import EditBetDialog from '@/components/EditBetDialog';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -63,7 +63,18 @@ export default function PendingBets() {
         if (!resultCardRef.current) {
           throw new Error('ResultCard não ficou disponível a tempo');
         }
-        const dataUrl = await toPng(resultCardRef.current, { pixelRatio: 2 });
+        const captureTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Captura da imagem demorou demasiado tempo (timeout)')), 15000)
+        );
+        const canvas = await Promise.race([
+          html2canvas(resultCardRef.current, {
+            scale: 2,
+            backgroundColor: null,
+            useCORS: true,
+          }),
+          captureTimeout,
+        ]);
+        const dataUrl = canvas.toDataURL('image/png');
         const imageBase64 = dataUrl.split(',')[1];
         const caption = `${printBet.match ?? ''}\n${printBet.status === 'green' ? '✅ GREEN' : '❌ RED'}`;
         toast.loading('A publicar no Telegram...', { id: 'tg-post' });
