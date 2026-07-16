@@ -24,7 +24,7 @@ export default function PendingBets() {
   const [closeProfit, setCloseProfit] = useState('');
   const [closeResult, setCloseResult] = useState('');
   const [closeReason, setCloseReason] = useState('');
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const admin = canAdmin(role);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
@@ -126,8 +126,10 @@ export default function PendingBets() {
     const { error } = await supabase.from('bets').update(update).eq('id', closing.id);
     if (error) { toast.error(error.message); return; }
     toast.success(`Aposta marcada como ${closeStatus}`);
-    // Publicação automática no Telegram — só para green/red (não void/cashout).
-    if (closeStatus === 'green' || closeStatus === 'red') {
+    // Publicação automática no Telegram — só para green/red, e só quando a aposta
+    // pertence mesmo à banca do admin (não à banca privada de outro utilizador).
+    const isAdminOwnBet = role === 'admin' && closing.created_by === user?.id;
+    if ((closeStatus === 'green' || closeStatus === 'red') && isAdminOwnBet) {
       setPrintBet({ ...closing, ...update });
     }
     setClosing(null);
