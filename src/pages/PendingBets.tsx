@@ -88,9 +88,10 @@ export default function PendingBets() {
         if (error) {
           throw new Error(error.message || 'Erro ao chamar a função do Telegram');
         }
-        if (!data?.ok || !data?.photo) {
+        if (!data?.ok) {
           throw new Error(
             data?.error ||
+            data?.description ||
             data?.detail?.description ||
             JSON.stringify(data) ||
             'O Telegram não confirmou o envio'
