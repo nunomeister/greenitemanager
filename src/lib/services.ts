@@ -63,9 +63,20 @@ export function enrichBetForTemplate(bet: Record<string, any>): Record<string, a
 
 export function fillTemplate(tpl: string, bet: Record<string, any>): string {
   const data = enrichBetForTemplate(bet);
-  return tpl.replace(/\{(\w+)\}/g, (_, k) => {
+
+  // Blocos condicionais: {#if campo}texto{/if} — o texto só aparece se o campo
+  // tiver um valor preenchido nesta aposta (ex: nem todas as apostas têm "player").
+  let result = tpl.replace(/\{#if (\w+)\}([\s\S]*?)\{\/if\}\n?/g, (_, key, content) => {
+    const v = data[key];
+    const hasValue = v !== null && v !== undefined && v !== '';
+    return hasValue ? content : '';
+  });
+
+  result = result.replace(/\{(\w+)\}/g, (_, k) => {
     const v = data[k];
     if (v === null || v === undefined || v === '') return '—';
     return String(v);
   });
+
+  return result;
 }

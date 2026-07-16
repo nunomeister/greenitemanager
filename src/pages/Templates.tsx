@@ -36,7 +36,10 @@ export default function Templates() {
       <div>
         <h1 className="text-3xl font-bold">Templates Telegram</h1>
         <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider">
-          Placeholders disponíveis: {'{'}competition{'}'}, {'{'}match{'}'}, {'{'}market{'}'}, {'{'}selection{'}'}, {'{'}odd{'}'}, {'{'}stake{'}'}, {'{'}confidence{'}'}, {'{'}bet_code{'}'}, {'{'}betlabel_link{'}'}, {'{'}profit_loss{'}'}, {'{'}result{'}'}, {'{'}red_reason{'}'}, {'{'}match_minute{'}'}, {'{'}alert_type{'}'}
+          Placeholders disponíveis: {'{'}competition{'}'}, {'{'}match{'}'}, {'{'}market{'}'}, {'{'}selection{'}'}, {'{'}player{'}'}, {'{'}odd{'}'}, {'{'}stake{'}'}, {'{'}confidence{'}'}, {'{'}bet_code{'}'}, {'{'}betlabel_link{'}'}, {'{'}profit_loss{'}'}, {'{'}result{'}'}, {'{'}red_reason{'}'}, {'{'}match_minute{'}'}, {'{'}alert_type{'}'}
+        </p>
+        <p className="text-muted-foreground text-xs font-mono mt-1">
+          Texto condicional: {'{#if player}'}Jogador: {'{player}'}{'{/if}'} — só aparece se o campo estiver preenchido nesta aposta.
         </p>
       </div>
 
