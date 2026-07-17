@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Copy, Check, X, Ban, RotateCcw, Edit2, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -29,6 +30,7 @@ export default function PendingBets() {
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [closingPhrase, setClosingPhrase] = useState('');
+  const [publishToTelegram, setPublishToTelegram] = useState(true);
   const [printBet, setPrintBet] = useState<any | null>(null);
   // useRef em vez de useState: fica disponível de forma síncrona assim que o
   // <ResultCard> monta, sem depender de um segundo ciclo de render do React.
@@ -117,6 +119,7 @@ export default function PendingBets() {
     setCloseStatus(status);
     setCloseProfit(status === 'green' ? String(((bet.odd - 1) * bet.stake).toFixed(2)) : status === 'red' ? String((-bet.stake).toFixed(2)) : '0');
     setCloseResult(''); setCloseReason('');
+    setPublishToTelegram(true);
   };
 
   const confirmClose = async () => {
@@ -129,7 +132,7 @@ export default function PendingBets() {
     // Publicação automática no Telegram — só para green/red, e só quando a aposta
     // pertence mesmo à banca do admin (não à banca privada de outro utilizador).
     const isAdminOwnBet = role === 'admin' && closing.created_by === user?.id;
-    if ((closeStatus === 'green' || closeStatus === 'red') && isAdminOwnBet) {
+    if ((closeStatus === 'green' || closeStatus === 'red') && isAdminOwnBet && publishToTelegram) {
       setPrintBet({ ...closing, ...update });
     }
     setClosing(null);
@@ -238,6 +241,12 @@ export default function PendingBets() {
             <div><Label>Lucro/Prejuízo (€)</Label><Input type="number" step="0.01" value={closeProfit} onChange={e=>setCloseProfit(e.target.value)} /></div>
             <div><Label>Resultado final</Label><Input value={closeResult} onChange={e=>setCloseResult(e.target.value)} placeholder="2-1" /></div>
             {closeStatus === 'red' && <div><Label>Motivo do red</Label><Textarea value={closeReason} onChange={e=>setCloseReason(e.target.value)} rows={3} /></div>}
+            {(closeStatus === 'green' || closeStatus === 'red') && role === 'admin' && closing?.created_by === user?.id && (
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox id="publish-telegram" checked={publishToTelegram} onCheckedChange={(c)=>setPublishToTelegram(c === true)} />
+                <Label htmlFor="publish-telegram" className="cursor-pointer font-normal">Publicar resultado no Telegram</Label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={()=>setClosing(null)}>Cancelar</Button>
